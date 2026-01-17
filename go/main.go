@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/proxy"
+	_ "modernc.org/sqlite"
 )
 
 // ScanResult represents the complete scan output
@@ -452,7 +452,7 @@ func inferServiceFromPort(port int) string {
 
 // Database functions
 func initDatabase(dbPath string) (*sql.DB, error) {
-	database, err := sql.Open("sqlite3", dbPath)
+	database, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
 	}
