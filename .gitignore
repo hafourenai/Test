@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+ENV/
+env/
+python/venv/
+
+# Go
+go/scanner
+go/scanner.exe
+go/vulnerabilities.db
+*.db
+
+# Environment Variables
+.env
+
+# Output and Logs
+output/
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project Specific
+proxies.txt
+config/cve_feed.json
