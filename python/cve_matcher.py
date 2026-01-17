@@ -1,92 +1,89 @@
 # python/cve_matcher.py
 """
-CVE Matcher - Matches detected services against CVE database
+CVE Matcher - Real-time correlation engine using NVD Live Intelligence.
+Features professional filtering based on exploitability and threat vectors.
 """
 
-import json
-import re
-from pathlib import Path
-from typing import Dict, List, Any
 import logging
+from typing import Dict, List, Any
+from cpe_generator import CPEGenerator
+from nvd_client import NVDClient
 
 logger = logging.getLogger(__name__)
 
-
 class CVEMatcher:
-    """Matches services against CVE vulnerability database"""
+    """Professional CVE Correlation Engine powered by real-time NVD data"""
     
-    def __init__(self, cve_feed_path: str = "../config/cve_feed.json"):
-        self.cve_feed_path = Path(cve_feed_path)
-        self.cve_database = []
-        self._load_cve_feed()
-    
-    def _load_cve_feed(self):
-        """Load CVE database from JSON file"""
-        try:
-            if self.cve_feed_path.exists():
-                with open(self.cve_feed_path, 'r') as f:
-                    data = json.load(f)
-                    self.cve_database = data.get('cve_database', [])
-                logger.info(f"✅ Loaded {len(self.cve_database)} CVE entries")
-            else:
-                logger.warning(f"CVE feed not found: {self.cve_feed_path}")
-                # Create default empty database
-                self.cve_database = []
-        except Exception as e:
-            logger.error(f"Error loading CVE feed: {e}")
-            self.cve_database = []
-    
+    def __init__(self, api_key: str = None):
+        self.nvd_client = NVDClient(api_key=api_key)
+        self.cpe_gen = CPEGenerator(nvd_client=self.nvd_client)
+        logger.info("📡 Real-Time NVD Engine Initialized")
+
     def match_service(self, service_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Match a service against CVE database
-        
-        Args:
-            service_info: Service information dict with 'service', 'version', 'port'
-            
-        Returns:
-            List of matching CVE entries
+        Correlates a detected service with live vulnerabilities.
+        Workflow: Service Info -> CPE -> NVD API -> Advanced Filtering
         """
-        matches = []
+        # 1. Generate CPE
+        cpe = self.cpe_gen.generate(service_info)
+        logger.debug(f"Resolved CPE: {cpe}")
+
+        # 2. Fetch from NVD (Cache-first)
+        raw_vulnerabilities = self.nvd_client.query_by_cpe(cpe)
         
-        service_name = service_info.get('service', '').lower()
-        service_version = service_info.get('version', '').lower()
-        port = service_info.get('port', 0)
+        # 3. Professional Filtering & Correlation
+        threat_findings = self._filter_and_score(raw_vulnerabilities, service_info)
         
-        for cve in self.cve_database:
-            cve_service = cve.get('service', '').lower()
-            version_pattern = cve.get('version_pattern', '.*')
-            
-            # Match service name
-            if cve_service in service_name or service_name in cve_service:
-                # Match version pattern
-                if re.search(version_pattern, service_version, re.IGNORECASE):
-                    match = {
-                        'cve_id': cve.get('cve_id'),
-                        'service': service_info.get('service'),
-                        'version': service_info.get('version'),
-                        'port': port,
-                        'description': cve.get('description'),
-                        'severity': cve.get('severity'),
-                        'cvss_score': cve.get('cvss_score', 0.0),
-                        'references': cve.get('references', [])
-                    }
-                    matches.append(match)
+        return threat_findings
+
+    def _filter_and_score(self, vulnerabilities: List[Dict[str, Any]], 
+                          service_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Applies professional-grade filters to reduce false positives.
+        Rules:
+        - CVSS >= 7.0
+        - Exploitability >= 2.0
+        - User Interaction = NONE
+        - Privileges Required = NONE
+        """
+        filtered = []
+        for vuln in vulnerabilities:
+            # Multi-factor professional filter
+            is_high_risk = vuln.get('cvss_score', 0) >= 7.0
+            is_remotely_exploitable = "NETWORK" in vuln.get('vector', '').upper()
+            is_low_complexity = vuln.get('exploitability_score', 0) >= 2.0
+            no_interaction = vuln.get('user_interaction', 'NONE').upper() == "NONE"
+            no_privs = vuln.get('privileges_required', 'NONE').upper() == "NONE"
+
+            if is_high_risk and is_remotely_exploitable and is_low_complexity:
+                # Flag critical remote exploits
+                if no_interaction and no_privs:
+                    vuln['threat_level'] = "CRITICAL_REMOTE_EXPLOIT"
+                else:
+                    vuln['threat_level'] = "HIGH_RISK_SERVICE"
+                
+                # Attach context
+                vuln['matched_service'] = service_info.get('service')
+                vuln['matched_version'] = service_info.get('version')
+                
+                filtered.append(vuln)
         
-        return matches
-    
+        # Sort by CVSS score descending
+        return sorted(filtered, key=lambda x: x.get('cvss_score', 0), reverse=True)
+
     def get_severity_stats(self, vulnerabilities: List[Dict[str, Any]]) -> Dict[str, int]:
-        """Get statistics of vulnerabilities by severity"""
-        stats = {
-            'Critical': 0,
-            'High': 0,
-            'Medium': 0,
-            'Low': 0,
-            'Info': 0
-        }
+        """Summarizes findings by risk levels"""
+        stats = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
         
         for vuln in vulnerabilities:
-            severity = vuln.get('severity', 'Info')
-            if severity in stats:
-                stats[severity] += 1
+            score = vuln.get('cvss_score', 0)
+            if score >= 9.0:
+                stats["CRITICAL"] += 1
+            elif score >= 7.0:
+                stats["HIGH"] += 1
+            elif score >= 4.0:
+                stats["MEDIUM"] += 1
+            else:
+                stats["LOW"] += 1
         
         return stats

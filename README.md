@@ -68,9 +68,14 @@ pip install -r ../requirements.txt
 
 ## 📖 Usage
 
+### Specifying the Target
+Target can be an **IP address** (e.g., `192.168.1.1`) or a **Domain** (e.g., `example.com`).
+> [!IMPORTANT]
+> Do **NOT** include `http://` or `https://` in the CLI target argument.
+
 ### Basic Scan (CLI)
 ```bash
-# Using the Go engine directly
+# Using the Go engine directly (Fastest)
 ./go/scanner -target scanme.nmap.org -start 1 -end 1000
 
 # Using the Python Orchestrator (Recommended for Stealth)

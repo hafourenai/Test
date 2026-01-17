@@ -8,11 +8,21 @@ import argparse
 import json
 import sys
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
+
+def load_env(env_path: Path):
+    """Simple .env loader to avoid extra dependencies"""
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            for line in f:
+                if '=' in line and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    os.environ[key.strip()] = value.strip()
 
 from stealth_orchestrator import StealthOrchestrator
 from orchestrator import ScanOrchestrator
@@ -180,7 +190,11 @@ def main():
         orchestrator = ScanOrchestrator()
     
     # Initialize other components
-    cve_matcher = CVEMatcher()
+    # Load environment from project root
+    load_env(Path(__file__).parent.parent / '.env')
+    
+    nvd_key = os.getenv("NVD_API_KEY")
+    cve_matcher = CVEMatcher(api_key=nvd_key)
     plugin_loader = PluginLoader()
     output_handler = OutputHandler()
     
@@ -206,7 +220,7 @@ def main():
     # CVE Matching
     vulnerabilities = []
     if not args.no_cve:
-        print("\n🔍 Matching vulnerabilities against CVE database...")
+        print("\n🔍 Correlating with Real-Time NVD Intelligence Engine...")
         for service in scan_results.get('services', []):
             cves = cve_matcher.match_service(service)
             vulnerabilities.extend(cves)
