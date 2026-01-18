@@ -45,27 +45,45 @@ class CPEGenerator:
                 self.fuzzy_scorer = fuzz.PARTIAL_RATIO   # RapidFuzz v2.x
 
     def generate(self, service_info: Dict[str, Any]) -> str:
+        """
+        Generate CPE from service information.
+        Now enhanced to consume fingerprinted data from Active Service Fingerprinting Engine.
+        
+        Priority:
+        1. Use fingerprinted 'product' and 'version' fields (from service_fingerprinter.py)
+        2. Fall back to banner parsing for legacy compatibility
+        """
+        # Extract fingerprinted data (preferred)
+        product = service_info.get('product', '').lower()
+        version = service_info.get('version', '*')
         service = service_info.get('service', '').lower()
         banner = service_info.get('banner', '').lower()
-        version = service_info.get('version', '*')
 
         version = self._clean_version(version)
 
+        # If we have fingerprinted product data, use it directly
+        if product and product != 'unknown':
+            cpe_base = self._match_static(product, banner)
+            if cpe_base:
+                return self._build_cpe(cpe_base['vendor'], cpe_base['product'], version)
+        
+        # Otherwise fall back to service/banner matching
         cpe_base = self._match_static(service, banner)
         if cpe_base:
             return self._build_cpe(cpe_base['vendor'], cpe_base['product'], version)
 
         if process and self.fuzzy_scorer:
-            cpe_base = self._match_fuzzy(service, banner)
+            query = product if product != 'unknown' else service
+            cpe_base = self._match_fuzzy(query, banner)
             if cpe_base:
                 return self._build_cpe(cpe_base['vendor'], cpe_base['product'], version)
 
         if self.nvd_client:
             logger.debug(f"Attempting NVD Fallback for: {service} ({banner})")
 
-        vendor = service or "*"
-        product = service or "*"
-        return self._build_cpe(vendor, product, version)
+        vendor = product if product != 'unknown' else service or "*"
+        product_name = product if product != 'unknown' else service or "*"
+        return self._build_cpe(vendor, product_name, version)
 
     def _match_static(self, service: str, banner: str) -> Optional[Dict[str, str]]:
         combined = f"{service} {banner}".lower()

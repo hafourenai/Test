@@ -1,14 +1,26 @@
 # python/orchestrator.py
 """
 Base Scan Orchestrator
-Coordinates the vulnerability scanning process
+Coordinates the vulnerability scanning process with Active Service Fingerprinting
 """
 
 import json
 import subprocess
 import sys
+import logging
 from typing import Dict, List, Any
 from pathlib import Path
+
+# Import service fingerprinter
+try:
+    from modules.service_fingerprinter import ServiceFingerprinter
+except ImportError:
+    # Fallback if modules package not in path
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from modules.service_fingerprinter import ServiceFingerprinter
+
+logger = logging.getLogger(__name__)
 
 
 class ScanOrchestrator:
@@ -17,6 +29,8 @@ class ScanOrchestrator:
     def __init__(self, go_scanner_path: str = "../go/main.go"):
         self.go_scanner_path = go_scanner_path
         self.scan_results = {}
+        self.fingerprinter = ServiceFingerprinter()
+        logger.info("🔍 Active Service Fingerprinting Engine initialized")
         
     def validate_target(self, target: str) -> bool:
         """Validate target scope and format"""
@@ -73,9 +87,17 @@ class ScanOrchestrator:
             
             # Parse JSON output
             scan_data = json.loads(result.stdout)
+            
+            # === ACTIVE SERVICE FINGERPRINTING ===
+            # This is the missing component that converts port numbers to software identities
+            print(f"\\n🔬 Active Service Fingerprinting in progress...")
+            fingerprinted_services = self._fingerprint_services(target, scan_data)
+            scan_data['services'] = fingerprinted_services
+            
             self.scan_results = scan_data
             
             print(f"✅ Scan completed: {len(scan_data.get('open_ports', []))} open ports found")
+            print(f"✅ Fingerprinted: {len(fingerprinted_services)} services")
             return scan_data
             
         except subprocess.TimeoutExpired:
@@ -88,6 +110,53 @@ class ScanOrchestrator:
         except Exception as e:
             print(f"❌ Scanner error: {e}")
             return {}
+    
+    def _fingerprint_services(self, target: str, scan_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Actively fingerprint all detected services.
+        
+        This is the critical missing layer that enables CVE correlation.
+        Converts: Port 22 → OpenSSH 8.9p1
+        Instead of: Port 22 → unknown
+        
+        Args:
+            target: Target host
+            scan_data: Raw scan results from Go scanner
+            
+        Returns:
+            List of enriched service dictionaries with product and version
+        """
+        fingerprinted = []
+        open_ports = scan_data.get('open_ports', [])
+        
+        for port_info in open_ports:
+            port = port_info.get('port')
+            if not port:
+                continue
+            
+            # Perform active fingerprinting
+            fingerprint = self.fingerprinter.fingerprint(target, port)
+            
+            # Merge port info with fingerprint data
+            enriched_service = {
+                'port': port,
+                'state': port_info.get('state', 'open'),
+                'service': fingerprint.get('service', 'unknown'),
+                'product': fingerprint.get('product', 'unknown'),
+                'version': fingerprint.get('version', 'unknown'),
+                'banner': fingerprint.get('banner', '')
+            }
+            
+            fingerprinted.append(enriched_service)
+            
+            # Log successful identifications
+            if fingerprint.get('product') != 'unknown':
+                logger.info(
+                    f"Port {port}: {fingerprint['service']} "
+                    f"({fingerprint['product']} {fingerprint['version']})"
+                )
+        
+        return fingerprinted
     
     def get_results(self) -> Dict[str, Any]:
         """Get current scan results"""
