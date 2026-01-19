@@ -10,6 +10,7 @@ import subprocess
 import socket
 import logging
 import os
+import requests  # Import at module level for type hints
 from pathlib import Path
 from typing import Optional, List, Dict
 
@@ -17,7 +18,6 @@ try:
     from tor_session import TorSession
     from config import TOR_SOCKS_PROXY, TOR_CONTROL_PORT
 except ImportError:
-    import requests
     TorSession = None
 
 logging.basicConfig(level=logging.INFO)
@@ -226,7 +226,6 @@ class ProxyManager:
                     timeout=timeout
                 )
             else:
-                import requests
                 response = requests.get(
                     'http://httpbin.org/ip',
                     proxies=proxy,
@@ -270,7 +269,6 @@ class ProxyManager:
                     timeout=10
                 )
             else:
-                import requests
                 response = requests.get(
                     'http://httpbin.org/ip',
                     proxies=proxy,
@@ -332,7 +330,6 @@ class StealthScanner:
                         method, url, proxies=proxy, **kwargs
                     )
                 else:
-                    import requests
                     response = requests.request(method, url, proxies=proxy, **kwargs)
                 
                 if response:
