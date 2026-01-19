@@ -11,7 +11,7 @@ import logging
 from typing import Dict, List, Any
 from pathlib import Path
 from proxy_manager import ProxyManager, StealthScanner
-from .build import build_go_scanner
+from build import build_go_scanner
 import os
 
 # Import service fingerprinter

@@ -19,14 +19,10 @@ except ImportError:
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
     from modules.service_fingerprinter import ServiceFingerprinter
+    from build import build_go_scanner
 
 logger = logging.getLogger(__name__)
 
-
-class ScanOrchestrator:
-    """Orchestrates the vulnerability scanning process"""
-    
-from .build import build_go_scanner
 
 class ScanOrchestrator:
     """Orchestrates the vulnerability scanning process"""
