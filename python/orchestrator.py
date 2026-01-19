@@ -26,98 +26,62 @@ logger = logging.getLogger(__name__)
 class ScanOrchestrator:
     """Orchestrates the vulnerability scanning process"""
     
-    def __init__(self, go_scanner_path: str = "../go/main.go"):
-        self.go_scanner_path = go_scanner_path
+from .build import build_go_scanner
+
+class ScanOrchestrator:
+    """Orchestrates the vulnerability scanning process"""
+    
+    def __init__(self, go_scanner_path: str = None): # Path is now dynamic
         self.scan_results = {}
         self.fingerprinter = ServiceFingerprinter()
         logger.info("[Search] Active Service Fingerprinting Engine initialized")
     
+    # ... (normalize_services, validate_target, _get_severity_tag remain the same) ...
     def normalize_services(self, services: List[Any]) -> List[Dict[str, Any]]:
-        """
-        Service Data Normalization Layer - Enforces canonical service schema.
-        
-        This is the single source of truth for service structure.
-        Transforms legacy formats into the required contract:
-        
-        Input (legacy):  [22, 80, 443]
-        Output (canonical): [{"port": 22, "state": "open"}, ...]
-        
-        Args:
-            services: Raw service data (can be list of ints or dicts)
-            
-        Returns:
-            List of normalized service dictionaries
-        """
+        # ... (implementation same as before)
         normalized = []
-        
         for svc in services:
-            # Legacy format: [22, 80, 443]
             if isinstance(svc, int):
-                normalized.append({
-                    "port": svc,
-                    "state": "open"
-                })
-            
-            # Partial dict format
+                normalized.append({"port": svc, "state": "open"})
             elif isinstance(svc, dict):
-                normalized.append({
-                    "port": svc.get("port"),
-                    "state": svc.get("state", "open")
-                })
-        
+                normalized.append({"port": svc.get("port"), "state": svc.get("state", "open")})
         return normalized
-        
+
     def validate_target(self, target: str) -> bool:
-        """Validate target scope and format"""
-        # Basic validation
-        if not target or len(target) == 0:
-            return False
-        
-        # Prevent scanning localhost/private IPs without explicit permission
+        if not target or len(target) == 0: return False
         restricted = ['localhost', '127.0.0.1', '0.0.0.0']
         if target in restricted:
             print(f"[!] Warning: Scanning {target} requires explicit permission")
             return False
-            
         return True
-    
+
     def _get_severity_tag(self, severity: str) -> str:
-        """Get text tag for severity level"""
         severity_map = {
-            'Critical': '[CRITICAL]',
-            'High': '[HIGH]',
-            'Medium': '[MEDIUM]',
-            'Low': '[LOW]',
-            'Info': '[INFO]'
+            'Critical': '[CRITICAL]', 'High': '[HIGH]',
+            'Medium': '[MEDIUM]', 'Low': '[LOW]', 'Info': '[INFO]'
         }
         return severity_map.get(severity, '[INFO]')
-    
+
     def execute_go_scanner(self, target: str, start_port: int = 1, 
                           end_port: int = 1000, timeout: int = 2, 
-                          threads: int = 100) -> Dict[str, Any]:
-        """Execute Go scanner and return results"""
+                          threads: int = 100, use_proxy: bool = False) -> Dict[str, Any]:
+        """
+        Execute Go scanner and return results.
+        Uses the separate build layer for compilation.
+        """
         
         print(f"[Scan] Starting scan on {target}...")
         print(f"   Port range: {start_port}-{end_port}")
         print(f"   Threads: {threads}")
         
         try:
-            # Build Go binary if needed
-            go_dir = Path(self.go_scanner_path).parent
-            binary_name = "scanner.exe" if sys.platform == "win32" else "scanner"
-            binary_path = go_dir / binary_name
+            # Step 1: Build Scanner (Clean Architecture)
+            # This handles path resolution and error reporting automatically
+            scanner_path = build_go_scanner()
             
-            # Build
-            build_cmd = ["go", "build", "-o", binary_name, Path(self.go_scanner_path).name]
-            build_result = subprocess.run(build_cmd, cwd=str(go_dir), 
-                                        capture_output=True, text=True)
-            
-            if build_result.returncode != 0:
-                raise Exception(f"Go build failed: {build_result.stderr}")
-            
-            # Execute scanner
+            # Step 2: Execute Scanner
             scan_cmd = [
-                str(binary_path),
+                scanner_path,
                 "-target", target,
                 "-start", str(start_port),
                 "-end", str(end_port),
@@ -125,17 +89,26 @@ class ScanOrchestrator:
                 "-threads", str(threads)
             ]
             
+            # Use proxy config if requested
+            # (Note: The Go scanner should handle env vars or flags for proxy depending on implementation)
+            # Assuming env vars HTTP_PROXY/HTTPS_PROXY are picked up if set in main.py
+            
             result = subprocess.run(scan_cmd, capture_output=True, 
-                                  text=True, timeout=300)
+                                  text=True, timeout=300, check=False)
             
             if result.returncode != 0:
-                raise Exception(f"Scanner failed: {result.stderr}")
+                raise RuntimeError(f"Scanner execution failed:\n{result.stderr}")
             
             # Parse JSON output
-            scan_data = json.loads(result.stdout)
+            try:
+                scan_data = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                # Fallback: sometimes scanner might output logs mixed with JSON if not careful
+                # But our scanner outputs pretty JSON at the end.
+                logger.error(f"Failed to parse JSON. Raw output:\n{result.stdout[:200]}...")
+                return {}
             
             # === ACTIVE SERVICE FINGERPRINTING ===
-            # This is the missing component that converts port numbers to software identities
             print(f"\n[Search] Active Service Fingerprinting in progress...")
             fingerprinted_services = self._fingerprint_services(target, scan_data)
             scan_data['services'] = fingerprinted_services
@@ -146,15 +119,17 @@ class ScanOrchestrator:
             print(f"[Success] Fingerprinted: {len(fingerprinted_services)} services")
             return scan_data
             
+        except FileNotFoundError as e:
+            print(f"[Error] Dependency missing: {e}")
+            return {}
+        except RuntimeError as e:
+            print(f"[Error] {e}")
+            return {}
         except subprocess.TimeoutExpired:
             print("[Error] Scanner timeout (5 minutes)")
             return {}
-        except json.JSONDecodeError as e:
-            print(f"[Error] Failed to parse scanner output: {e}")
-            print(f"Raw output: {result.stdout[:500]}")
-            return {}
         except Exception as e:
-            print(f"[Error] Scanner error: {e}")
+            print(f"[Error] Unexpected scanner error: {e}")
             return {}
     
     def _fingerprint_services(self, target: str, scan_data: Dict[str, Any]) -> List[Dict[str, Any]]:

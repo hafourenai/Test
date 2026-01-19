@@ -107,6 +107,9 @@ class StealthOrchestrator:
             
         return True
     
+from .build import build_go_scanner
+import os
+
     def execute_go_scanner(self, target: str, start_port: int = 1, 
                           end_port: int = 1000, timeout: int = 2, 
                           threads: int = 100, use_proxy: bool = False) -> Dict[str, Any]:
@@ -123,29 +126,21 @@ class StealthOrchestrator:
                 print(f"   🔄 Proxy rotation enabled ({len(self.proxy_manager.proxies)} proxies)")
         
         try:
-            go_dir = Path(self.go_scanner_path).parent
+            # Step 1: Build (using centralized build layer)
+            scanner_path = build_go_scanner()
             
-            # Cross-platform binary name
-            binary_name = "scanner.exe" if sys.platform == "win32" else "scanner"
-            binary_path = go_dir / binary_name
-            
-            # Build
-            build_cmd = ["go", "build", "-o", binary_name, Path(self.go_scanner_path).name]
-            build_result = subprocess.run(build_cmd, cwd=str(go_dir), 
-                                        capture_output=True, text=True)
-            
-            if build_result.returncode != 0:
-                raise Exception(f"Go build failed: {build_result.stderr}")
-            
-            # Prepare scanner command
+            # Step 2: Prepare command
             scan_cmd = [
-                str(binary_path),
+                scanner_path,
                 "-target", target,
                 "-start", str(start_port),
                 "-end", str(end_port),
                 "-timeout", str(timeout),
                 "-threads", str(threads)
             ]
+            
+            # Prepare environment
+            env = os.environ.copy()
             
             # Add proxy if available
             if use_proxy and self.proxy_manager:
@@ -164,20 +159,19 @@ class StealthOrchestrator:
                         env['HTTPS_PROXY'] = proxy_url
                         if not self.proxy_manager.use_tor:
                             print(f"   [IP] Using proxy for Go scanner")
-                    
-                    result = subprocess.run(scan_cmd, capture_output=True, 
-                                          text=True, timeout=300, env=env)
-                else:
-                    result = subprocess.run(scan_cmd, capture_output=True, 
-                                          text=True, timeout=300)
-            else:
-                result = subprocess.run(scan_cmd, capture_output=True, 
-                                      text=True, timeout=300)
+            
+            # Execute
+            result = subprocess.run(scan_cmd, capture_output=True, 
+                                  text=True, timeout=300, env=env, check=False)
             
             if result.returncode != 0:
-                raise Exception(f"Scanner failed: {result.stderr}")
+                raise RuntimeError(f"Scanner execution failed:\n{result.stderr}")
             
-            scan_data = json.loads(result.stdout)
+            try:
+                scan_data = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                print(f"❌ Failed to parse JSON. Raw output:\n{result.stdout[:200]}...")
+                return {}
             
             # === ACTIVE SERVICE FINGERPRINTING ===
             print(f"\n  Active Service Fingerprinting in progress...")
@@ -190,11 +184,14 @@ class StealthOrchestrator:
             print(f"  Fingerprinted: {len(fingerprinted_services)} services")
             return scan_data
             
+        except FileNotFoundError as e:
+            print(f"❌ Dependency error: {e}")
+            return {}
+        except RuntimeError as e:
+            print(f"❌ {e}")
+            return {}
         except subprocess.TimeoutExpired:
             print("❌ Scanner timeout (5 minutes)")
-            return {}
-        except json.JSONDecodeError as e:
-            print(f"❌ Failed to parse scanner output: {e}")
             return {}
         except Exception as e:
             print(f"❌ Scanner error: {e}")

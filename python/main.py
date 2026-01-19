@@ -31,7 +31,7 @@ from proxy_manager import ProxyManager
 
 # Import NVD components
 try:
-    from modules.cve_matcher import CVEMatcher
+    from modules.nvd import CVEMatcher
     NVD_AVAILABLE = True
 except ImportError:
     NVD_AVAILABLE = False

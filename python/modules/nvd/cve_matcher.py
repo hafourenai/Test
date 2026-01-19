@@ -5,7 +5,7 @@ Matches detected services with known vulnerabilities
 
 import logging
 from typing import List, Dict, Optional
-from nvd_client import NVDClient
+from .nvd_client import NVDClient
 
 logger = logging.getLogger(__name__)
 
