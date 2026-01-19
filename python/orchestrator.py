@@ -269,4 +269,3 @@ class ScanOrchestrator:
         """Apply rate limiting between requests"""
         import time
         time.sleep(delay)
-```
