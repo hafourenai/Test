@@ -11,6 +11,8 @@ import logging
 from typing import Dict, List, Any
 from pathlib import Path
 from proxy_manager import ProxyManager, StealthScanner
+from .build import build_go_scanner
+import os
 
 # Import service fingerprinter
 try:
@@ -107,8 +109,6 @@ class StealthOrchestrator:
             
         return True
     
-from .build import build_go_scanner
-import os
 
     def execute_go_scanner(self, target: str, start_port: int = 1, 
                           end_port: int = 1000, timeout: int = 2, 
