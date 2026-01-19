@@ -6,12 +6,19 @@ Implements proxy rotation and Tor integration to avoid blocking
 
 import random
 import time
-import requests
 import subprocess
 import socket
+import logging
+import os
 from pathlib import Path
 from typing import Optional, List, Dict
-import logging
+
+try:
+    from tor_session import TorSession
+    from config import TOR_SOCKS_PROXY, TOR_CONTROL_PORT
+except ImportError:
+    import requests
+    TorSession = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,7 +34,10 @@ class ProxyManager:
         self.current_proxy_index = 0
         self.tor_process = None
         self.tor_port = 9050
-        self.tor_control_port = 9051
+        self.tor_control_port = int(os.getenv('TOR_CONTROL_PORT', 9051))
+        
+        # Initialize Tor session for verification
+        self.tor_session = TorSession() if TorSession else None
         
         # Load proxies from file
         if self.proxies_file.exists():
@@ -55,7 +65,7 @@ class ProxyManager:
                 if proxy:
                     self.proxies.append(proxy)
             
-            logger.info(f"✅ Loaded {len(self.proxies)} proxies from {self.proxies_file}")
+            logger.info(f"  Loaded {len(self.proxies)} proxies from {self.proxies_file}")
             
             # Shuffle proxies for randomization
             random.shuffle(self.proxies)
@@ -103,7 +113,7 @@ class ProxyManager:
         try:
             # Check if Tor is already running
             if self._check_tor_running():
-                logger.info("✅ Tor is already running")
+                logger.info("  Tor is already running")
                 return
             
             # Try to start Tor
@@ -119,7 +129,7 @@ class ProxyManager:
             
             # Check if Tor is now running
             if self._check_tor_running():
-                logger.info("✅ Tor service started successfully")
+                logger.info("  Tor service started successfully")
             else:
                 logger.warning("⚠️  Could not start Tor automatically")
                 logger.info("Please start Tor manually: sudo systemctl start tor")
@@ -175,7 +185,7 @@ class ProxyManager:
             with Controller.from_port(port=self.tor_control_port) as controller:
                 controller.authenticate()
                 controller.signal(Signal.NEWNYM)
-                logger.info("✅ Tor identity renewed (new circuit)")
+                logger.info("  Tor identity renewed (new circuit)")
                 time.sleep(5)  # Wait for new circuit
         
         except ImportError:
@@ -208,17 +218,27 @@ class ProxyManager:
     def test_proxy(self, proxy: Dict[str, str], timeout: int = 10) -> bool:
         """Test if proxy is working"""
         try:
-            response = requests.get(
-                'http://httpbin.org/ip',
-                proxies=proxy,
-                timeout=timeout
-            )
-            if response.status_code == 200:
+            # If using TorSession, we use it for proxy testing as well
+            if self.tor_session:
+                response = self.tor_session.get(
+                    'http://httpbin.org/ip',
+                    proxies=proxy,
+                    timeout=timeout
+                )
+            else:
+                import requests
+                response = requests.get(
+                    'http://httpbin.org/ip',
+                    proxies=proxy,
+                    timeout=timeout
+                )
+                
+            if response and response.status_code == 200:
                 ip_info = response.json()
-                logger.info(f"✅ Proxy working - IP: {ip_info.get('origin', 'unknown')}")
+                logger.info(f"[Success] Proxy working - IP: {ip_info.get('origin', 'unknown')}")
                 return True
         except Exception as e:
-            logger.warning(f"❌ Proxy test failed: {e}")
+            logger.warning(f"[Error] Proxy test failed: {e}")
         
         return False
     
@@ -236,20 +256,30 @@ class ProxyManager:
         removed = len(self.proxies) - len(valid_proxies)
         self.proxies = valid_proxies
         
-        logger.info(f"✅ Validation complete: {len(valid_proxies)} valid, {removed} removed")
+        logger.info(f"[Success] Validation complete: {len(valid_proxies)} valid, {removed} removed")
     
     def get_public_ip(self, use_proxy: bool = True) -> str:
         """Get current public IP (useful for verification)"""
         try:
             proxy = self.get_current_proxy() if use_proxy else None
             
-            response = requests.get(
-                'http://httpbin.org/ip',
-                proxies=proxy,
-                timeout=10
-            )
+            if self.tor_session and use_proxy:
+                response = self.tor_session.get(
+                    'http://httpbin.org/ip',
+                    proxies=proxy,
+                    timeout=10
+                )
+            else:
+                import requests
+                response = requests.get(
+                    'http://httpbin.org/ip',
+                    proxies=proxy,
+                    timeout=10
+                )
             
-            return response.json().get('origin', 'unknown')
+            if response:
+                return response.json().get('origin', 'unknown')
+            return 'unknown'
         except Exception as e:
             logger.error(f"Error getting public IP: {e}")
             return 'unknown'
@@ -297,22 +327,25 @@ class StealthScanner:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                if method.upper() == 'GET':
-                    response = requests.get(url, proxies=proxy, **kwargs)
-                elif method.upper() == 'POST':
-                    response = requests.post(url, proxies=proxy, **kwargs)
+                if self.proxy_manager.use_tor and self.proxy_manager.tor_session:
+                    response = self.proxy_manager.tor_session.session.request(
+                        method, url, proxies=proxy, **kwargs
+                    )
                 else:
+                    import requests
                     response = requests.request(method, url, proxies=proxy, **kwargs)
                 
-                self.request_count += 1
-                
-                # Rotate proxy after every 10 requests
-                if self.request_count % 10 == 0:
-                    logger.info("Rotating proxy after 10 requests...")
-                    if self.proxy_manager.use_tor:
-                        self.proxy_manager.renew_tor_identity()
-                
-                return response
+                if response:
+                    self.request_count += 1
+                    
+                    # Rotate proxy after every 10 requests
+                    if self.request_count % 10 == 0:
+                        logger.info("Rotating proxy after 10 requests...")
+                        if self.proxy_manager.use_tor:
+                            self.proxy_manager.renew_tor_identity()
+                    
+                    return response
+                return None
             
             except Exception as e:
                 logger.warning(f"Request failed (attempt {attempt+1}/{max_retries}): {e}")

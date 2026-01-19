@@ -211,11 +211,11 @@ func performScan(target string, startPort, endPort, timeout, threads int) ScanRe
 	config := getProxyConfig()
 
 	if config.UseTor {
-		log.Printf("🧅 Using Tor network (SOCKS5: %s)", config.TorSOCKSAddr)
+		log.Printf("[Tor] Using Tor network (SOCKS5: %s)", config.TorSOCKSAddr)
 	} else if config.HTTPProxy != "" {
-		log.Printf("🔄 Using HTTP proxy: %s", config.HTTPProxy)
+		log.Printf("[IP] Using HTTP proxy: %s", config.HTTPProxy)
 	} else if config.SOCKS5Proxy != "" {
-		log.Printf("🔄 Using SOCKS5 proxy: %s", config.SOCKS5Proxy)
+		log.Printf("[IP] Using SOCKS5 proxy: %s", config.SOCKS5Proxy)
 	}
 
 	// Port Scanning

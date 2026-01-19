@@ -14,14 +14,15 @@ import socket
 import ssl
 import re
 import logging
+import time
 from typing import Dict, Any, Optional
 
 try:
-    import requests
-    from requests.packages.urllib3.exceptions import InsecureRequestWarning
-    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+    from tor_session import TorSession
+    TOR_AVAILABLE = True
 except ImportError:
-    requests = None
+    TOR_AVAILABLE = False
+    import requests
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,23 @@ logger = logging.getLogger(__name__)
 class ServiceFingerprinter:
     """Active service fingerprinting engine for real software identification"""
     
-    TIMEOUT = 4
+    TIMEOUT = 5
+    
+    def __init__(self, use_tor: bool = False):
+        """
+        Initialize fingerprinter
+        
+        Args:
+            use_tor: Whether to route all fingerprinting through Tor (default: False)
+        """
+        self.use_tor = use_tor
+        self.tor_session = TorSession() if use_tor and TOR_AVAILABLE else None
+        
+        if use_tor:
+            if TOR_AVAILABLE:
+                logger.info("[Tor] ServiceFingerprinter using Tor for all active discovery")
+            else:
+                logger.warning("[!] Tor requested for fingerprinting but modules not loaded")
     
     # Protocol-specific patterns for banner parsing
     BANNER_PATTERNS = {
@@ -93,33 +110,42 @@ class ServiceFingerprinter:
         # Generic TCP banner grab
         return self._fingerprint_generic(host, port)
     
-    def _fingerprint_http(self, host: str, port: int, https: bool) -> Dict[str, Any]:
+    def _fingerprint_http(self, host: str, port: int) -> Dict[str, Any]:
         """
         Fingerprint HTTP/HTTPS services by analyzing headers.
         
         Args:
             host: Target hostname
             port: Target port
-            https: Whether to use HTTPS
             
         Returns:
             Service fingerprint dictionary
         """
-        if not requests:
-            logger.warning("requests library not available, skipping HTTP fingerprinting")
-            return {"service": "http", "product": "unknown", "version": "unknown"}
+        if not TOR_AVAILABLE: # requests is imported in the except block for TorSession
+            import requests
+            from requests.packages.urllib3.exceptions import InsecureRequestWarning
+            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         
-        scheme = "https" if https else "http"
+        scheme = "https" if port in (443, 8443) else "http"
         url = f"{scheme}://{host}:{port}"
         
         try:
-            r = requests.get(
-                url, 
-                timeout=self.TIMEOUT, 
-                verify=False,
-                allow_redirects=False,
-                headers={"User-Agent": "Mozilla/5.0"}
-            )
+            if self.use_tor and self.tor_session:
+                r = self.tor_session.get(
+                    url, 
+                    timeout=self.TIMEOUT, 
+                    verify=False,
+                    allow_redirects=False,
+                    headers={"User-Agent": "Mozilla/5.0"}
+                )
+            else:
+                r = requests.get(
+                    url, 
+                    timeout=self.TIMEOUT, 
+                    verify=False,
+                    allow_redirects=False,
+                    headers={"User-Agent": "Mozilla/5.0"}
+                )
             
             # Extract server header
             server = r.headers.get("Server", "")
@@ -152,16 +178,14 @@ class ServiceFingerprinter:
         SSH servers send their version string immediately upon connection.
         """
         try:
-            s = socket.create_connection((host, port), timeout=self.TIMEOUT)
-            banner = s.recv(1024).decode('utf-8', errors='ignore').strip()
-            s.close()
+            banner = self._grab_banner(host, port)
             
-            logger.info(f"SSH banner from {host}:{port} - {banner}")
-            return self._parse_banner(banner, "ssh")
+            if banner:
+                logger.info(f"SSH banner from {host}:{port} - {banner}")
+                return self._parse_banner(banner, "ssh")
             
-        except socket.timeout:
-            logger.debug(f"Timeout connecting to SSH on {host}:{port}")
             return {"service": "ssh", "product": "unknown", "version": "unknown"}
+            
         except Exception as e:
             logger.debug(f"SSH fingerprint failed for {host}:{port}: {e}")
             return {"service": "ssh", "product": "unknown", "version": "unknown"}
@@ -171,16 +195,14 @@ class ServiceFingerprinter:
         Fingerprint FTP service by reading the welcome banner.
         """
         try:
-            s = socket.create_connection((host, port), timeout=self.TIMEOUT)
-            banner = s.recv(1024).decode('utf-8', errors='ignore').strip()
-            s.close()
+            banner = self._grab_banner(host, port)
             
-            logger.info(f"FTP banner from {host}:{port} - {banner}")
-            return self._parse_banner(banner, "ftp")
+            if banner:
+                logger.info(f"FTP banner from {host}:{port} - {banner}")
+                return self._parse_banner(banner, "ftp")
             
-        except socket.timeout:
-            logger.debug(f"Timeout connecting to FTP on {host}:{port}")
             return {"service": "ftp", "product": "unknown", "version": "unknown"}
+            
         except Exception as e:
             logger.debug(f"FTP fingerprint failed for {host}:{port}: {e}")
             return {"service": "ftp", "product": "unknown", "version": "unknown"}
@@ -190,12 +212,13 @@ class ServiceFingerprinter:
         Fingerprint SMTP service by reading the banner.
         """
         try:
-            s = socket.create_connection((host, port), timeout=self.TIMEOUT)
-            banner = s.recv(1024).decode('utf-8', errors='ignore').strip()
-            s.close()
+            banner = self._grab_banner(host, port)
             
-            logger.info(f"SMTP banner from {host}:{port} - {banner}")
-            return self._parse_banner(banner, "smtp")
+            if banner:
+                logger.info(f"SMTP banner from {host}:{port} - {banner}")
+                return self._parse_banner(banner, "smtp")
+            
+            return {"service": "smtp", "product": "unknown", "version": "unknown"}
             
         except Exception as e:
             logger.debug(f"SMTP fingerprint failed for {host}:{port}: {e}")
@@ -206,27 +229,55 @@ class ServiceFingerprinter:
         Fingerprint MySQL/MariaDB by attempting connection.
         """
         try:
-            s = socket.create_connection((host, port), timeout=self.TIMEOUT)
             # MySQL sends server greeting immediately
-            banner = s.recv(1024).decode('utf-8', errors='ignore').strip()
-            s.close()
+            banner = self._grab_banner(host, port)
             
-            logger.info(f"MySQL banner from {host}:{port} - {banner}")
-            return self._parse_banner(banner, "mysql")
+            if banner:
+                logger.info(f"MySQL banner from {host}:{port} - {banner}")
+                return self._parse_banner(banner, "mysql")
+            
+            return {"service": "mysql", "product": "unknown", "version": "unknown"}
             
         except Exception as e:
             logger.debug(f"MySQL fingerprint failed for {host}:{port}: {e}")
             return {"service": "mysql", "product": "unknown", "version": "unknown"}
+    
+    def _grab_banner(self, host: str, port: int, send_data: bytes = None) -> str:
+        """Helper to grab raw banner from a socket"""
+        s = None
+        try:
+            # Use Tor proxy socket if enabled
+            if self.use_tor and self.tor_session:
+                s = self.tor_session.get_proxy_socket(timeout=self.TIMEOUT)
+            else:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(self.TIMEOUT)
+            
+            if not s:
+                return ""
+                
+            s.connect((host, port))
+            
+            if send_data:
+                s.send(send_data)
+                
+            banner = s.recv(1024).decode('utf-8', errors='ignore').strip()
+            return banner
+        except Exception as e:
+            logger.debug(f"Banner grab failed for {host}:{port} - {e}")
+            return ""
+        finally:
+            if s:
+                s.close()
     
     def _fingerprint_postgresql(self, host: str, port: int) -> Dict[str, Any]:
         """
         Fingerprint PostgreSQL service.
         """
         try:
-            s = socket.create_connection((host, port), timeout=self.TIMEOUT)
-            s.close()
+            # PostgreSQL doesn't send banner without proper handshake, just check if connection is possible
+            s = self._grab_banner(host, port) # Just try to connect and close
             
-            # PostgreSQL doesn't send banner without proper handshake
             return {"service": "postgresql", "product": "postgresql", "version": "unknown"}
             
         except Exception as e:

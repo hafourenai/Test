@@ -32,8 +32,8 @@ class StealthOrchestrator:
         self.scan_results = {}
         
         # Initialize service fingerprinter
-        self.fingerprinter = ServiceFingerprinter()
-        logger.info("🔍 Active Service Fingerprinting Engine initialized")
+        self.fingerprinter = ServiceFingerprinter(use_tor=use_tor)
+        logger.info(f"  Active Service Fingerprinting Engine initialized (Tor: {use_tor})")
         
         # Initialize proxy manager
         self.proxy_manager = None
@@ -112,13 +112,13 @@ class StealthOrchestrator:
                           threads: int = 100, use_proxy: bool = False) -> Dict[str, Any]:
         """Execute Go scanner with optional proxy support"""
         
-        print(f"🔍 Starting stealth scan on {target}...")
+        print(f"  Starting stealth scan on {target}...")
         print(f"   Port range: {start_port}-{end_port}")
         print(f"   Threads: {threads}")
         
         if self.proxy_manager:
             if self.proxy_manager.use_tor:
-                print(f"   🧅 Using Tor network")
+                print(f"     Using Tor network")
             elif self.proxy_manager.proxies:
                 print(f"   🔄 Proxy rotation enabled ({len(self.proxy_manager.proxies)} proxies)")
         
@@ -152,15 +152,18 @@ class StealthOrchestrator:
                 proxy = self.proxy_manager.get_current_proxy('tor-fallback')
                 if proxy:
                     # Pass proxy to Go scanner via environment
-                    import os
-                    env = os.environ.copy()
+                    if self.proxy_manager.use_tor:
+                        env['USE_TOR'] = '1'
+                        env['SOCKS5_PROXY'] = '127.0.0.1:9050'
+                        print(f"   [Tor] Using Tor for Go scanner")
                     
                     # Extract proxy URL
                     proxy_url = proxy.get('http', '')
                     if proxy_url:
                         env['HTTP_PROXY'] = proxy_url
                         env['HTTPS_PROXY'] = proxy_url
-                        print(f"   📡 Using proxy for Go scanner")
+                        if not self.proxy_manager.use_tor:
+                            print(f"   [IP] Using proxy for Go scanner")
                     
                     result = subprocess.run(scan_cmd, capture_output=True, 
                                           text=True, timeout=300, env=env)
@@ -177,14 +180,14 @@ class StealthOrchestrator:
             scan_data = json.loads(result.stdout)
             
             # === ACTIVE SERVICE FINGERPRINTING ===
-            print(f"\n🔬 Active Service Fingerprinting in progress...")
+            print(f"\n  Active Service Fingerprinting in progress...")
             fingerprinted_services = self._fingerprint_services(target, scan_data)
             scan_data['services'] = fingerprinted_services
             
             self.scan_results = scan_data
             
-            print(f"✅ Scan completed: {len(scan_data.get('open_ports', []))} open ports found")
-            print(f"✅ Fingerprinted: {len(fingerprinted_services)} services")
+            print(f"  Scan completed: {len(scan_data.get('open_ports', []))} open ports found")
+            print(f"  Fingerprinted: {len(fingerprinted_services)} services")
             return scan_data
             
         except subprocess.TimeoutExpired:

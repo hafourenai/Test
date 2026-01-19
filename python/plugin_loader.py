@@ -20,7 +20,7 @@ class PluginLoader:
     def load_all_plugins(self) -> List[Any]:
         """Load all available plugins"""
         if not self.plugin_dir.exists():
-            print(f"⚠️  Plugin directory not found: {self.plugin_dir}")
+            print(f"[Warning] Plugin directory not found: {self.plugin_dir}")
             return []
         
         # Add plugin directory to path
@@ -40,9 +40,9 @@ class PluginLoader:
                     if hasattr(obj, 'analyze') and name != 'BasePlugin':
                         plugin_instance = obj()
                         loaded.append(plugin_instance)
-                        print(f"✅ Loaded plugin: {plugin_instance.name}")
+                        print(f"[Success] Loaded plugin: {plugin_instance.name}")
             
             except Exception as e:
-                print(f"⚠️  Failed to load plugin {plugin_file.name}: {e}")
+                print(f"[Warning] Failed to load plugin {plugin_file.name}: {e}")
         
         return loaded

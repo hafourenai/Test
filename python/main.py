@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-Vulnerability Scanner - Stealth Edition
+Vulnerability Scanner - Love U N
 Enhanced with Proxy Rotation and Tor Integration
 """
 
@@ -26,10 +25,24 @@ def load_env(env_path: Path):
 
 from stealth_orchestrator import StealthOrchestrator
 from orchestrator import ScanOrchestrator
-from cve_matcher import CVEMatcher
 from plugin_loader import PluginLoader
 from output_handler import OutputHandler
 from proxy_manager import ProxyManager
+
+# Import NVD components
+try:
+    from modules.cve_matcher import CVEMatcher
+    NVD_AVAILABLE = True
+except ImportError:
+    NVD_AVAILABLE = False
+    print("⚠️  Warning: NVD modules not available")
+
+# Import config
+try:
+    from config import setup_config
+    setup_config()
+except ImportError:
+    pass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,10 +55,10 @@ def print_banner():
     """Display scanner banner"""
     banner = """
 ╔═══════════════════════════════════════════════════╗
-║   VULNERABILITY SCANNER v2.0 - STEALTH EDITION    ║
+║                  LOVE U N - v2.0                  ║
 ║   Python + Go + Tor + Proxy Rotation              ║
-║   🧅 Tor Support | 🔄 Proxy Rotation               ║
-║   ⚠️  For Educational & Research Use Only          ║
+║   Tor Support | Proxy Rotation                    ║
+║   For Educational & Research Use Only             ║
 ╚═══════════════════════════════════════════════════╝
     """
     print(banner)
@@ -91,7 +104,7 @@ def test_proxy_setup(proxy_manager: ProxyManager):
         print(f"      {proxy_ip}")
         
         if proxy_ip != real_ip:
-            print("   ✅ Proxy/Tor is working correctly!")
+            print("     Proxy/Tor is working correctly!")
         else:
             print("   ⚠️  Warning: IP not changed, proxy may not be working")
     else:
@@ -171,7 +184,7 @@ def main():
     use_stealth = args.use_proxies or args.use_tor
     
     if use_stealth:
-        logger.info("🔒 Stealth mode enabled")
+        logger.info("[!] Stealth mode enabled")
         orchestrator = StealthOrchestrator(
             use_proxies=args.use_proxies,
             use_tor=args.use_tor,
@@ -186,7 +199,7 @@ def main():
             if args.validate_proxies and orchestrator.proxy_manager.proxies:
                 orchestrator.proxy_manager.validate_all_proxies()
     else:
-        logger.info("📡 Standard mode (no stealth features)")
+        logger.info("[*] Standard mode (no stealth features)")
         orchestrator = ScanOrchestrator()
     
     # Initialize other components
@@ -194,7 +207,16 @@ def main():
     load_env(Path(__file__).parent.parent / '.env')
     
     nvd_key = os.getenv("NVD_API_KEY")
-    cve_matcher = CVEMatcher(api_key=nvd_key)
+    
+    # Initialize CVE matcher with Tor support if enabled
+    if NVD_AVAILABLE:
+        cve_matcher = CVEMatcher(api_key=nvd_key, use_tor=use_stealth)
+        if use_stealth:
+            logger.info("[Tor] NVD API will use Tor network")
+    else:
+        cve_matcher = None
+        logger.warning("[!] CVE matching disabled (NVD modules not available)")
+    
     plugin_loader = PluginLoader()
     output_handler = OutputHandler()
     
@@ -217,15 +239,47 @@ def main():
         print("❌ Scan failed or returned no results")
         sys.exit(1)
     
-    # CVE Matching
     vulnerabilities = []
-    if not args.no_cve:
-        print("\n🔍 Correlating with Real-Time NVD Intelligence Engine...")
-        for service in scan_results.get('services', []):
-            cves = cve_matcher.match_service(service)
-            vulnerabilities.extend(cves)
+    if not args.no_cve and cve_matcher:
+        print("\n[Scan] Correlating with Real-Time NVD Intelligence Engine...")
         
-        print(f"✅ Found {len(vulnerabilities)} potential vulnerabilities")
+        # Convert services to format expected by CVE matcher
+        service_list = []
+        for svc in scan_results.get('services', []):
+            service_list.append({
+                'name': svc.get('service', 'unknown'),
+                'version': svc.get('version'),
+                'port': svc.get('port'),
+                'product': svc.get('product')
+            })
+        
+        if service_list:
+            findings = cve_matcher.match_vulnerabilities(service_list)
+            
+            if findings:
+                print(f"[Success] Found {sum(f['total_cves'] for f in findings)} potential vulnerabilities")
+                print(cve_matcher.format_findings(findings))
+                
+                # Export reports
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                reports_dir = Path(__file__).parent / 'reports'
+                reports_dir.mkdir(exist_ok=True)
+                
+                json_file = reports_dir / f'vulns_{timestamp}.json'
+                csv_file = reports_dir / f'vulns_{timestamp}.csv'
+                
+                cve_matcher.export_json(findings, str(json_file))
+                cve_matcher.export_csv(findings, str(csv_file))
+                
+                vulnerabilities = findings
+            else:
+                print("  No known vulnerabilities found")
+        else:
+            print("⚠️  No services detected for CVE matching")
+    elif args.no_cve:
+        print("\n⏭️  CVE matching skipped (--no-cve flag)")
+    else:
+        print("\n⚠️  CVE matching unavailable (NVD modules not loaded)")
     
     # Plugin execution
     plugin_results = []
@@ -237,7 +291,7 @@ def main():
             if findings:
                 plugin_results.extend(findings)
         
-        print(f"✅ Plugins generated {len(plugin_results)} findings")
+        print(f"  Plugins generated {len(plugin_results)} findings")
     
     # Compile final report
     final_report = {
@@ -282,7 +336,7 @@ def main():
     if use_stealth and hasattr(orchestrator, 'proxy_manager'):
         print("\n🔒 Stealth Mode Summary:")
         if args.use_tor:
-            print("   🧅 Tor: ENABLED")
+            print("     Tor: ENABLED")
         if args.use_proxies:
             print(f"   🔄 Proxies: {len(orchestrator.proxy_manager.proxies)} loaded")
         
@@ -291,7 +345,7 @@ def main():
             final_ip = orchestrator.proxy_manager.get_public_ip(use_proxy=True)
             print(f"   📡 Exit IP: {final_ip}")
     
-    print("\n✅ Scan completed successfully")
+    print("\n  Scan completed successfully")
 
 
 if __name__ == "__main__":

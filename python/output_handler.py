@@ -25,36 +25,36 @@ class OutputHandler:
             with open(output_path, 'w') as f:
                 json.dump(data, f, indent=2)
             
-            print(f"✅ Report saved to: {output_path}")
+            print(f"[Success] Report saved to: {output_path}")
         except Exception as e:
-            print(f"❌ Error saving report: {e}")
+            print(f"[Error] Error saving report: {e}")
     
     def print_summary(self, report: Dict[str, Any]):
         """Print formatted summary to console"""
         print("\n" + "="*60)
-        print("📊 SCAN SUMMARY")
+        print("SCAN SUMMARY")
         print("="*60)
         
         # Metadata
         metadata = report.get('metadata', {})
-        print(f"\n🎯 Target: {metadata.get('target', 'N/A')}")
-        print(f"⏰ Timestamp: {metadata.get('timestamp', 'N/A')}")
-        print(f"🔧 Scanner Version: {metadata.get('scanner_version', 'N/A')}")
+        print(f"\n[Target] Target: {metadata.get('target', 'N/A')}")
+        print(f"[Time] Timestamp: {metadata.get('timestamp', 'N/A')}")
+        print(f"[Build] Scanner Version: {metadata.get('scanner_version', 'N/A')}")
         
         # Stealth mode info
         stealth = metadata.get('stealth_mode', {})
         if stealth.get('proxies_enabled') or stealth.get('tor_enabled'):
-            print(f"\n🔒 Stealth Mode:")
+            print(f"\n[Stealth] Stealth Mode:")
             if stealth.get('tor_enabled'):
-                print(f"   🧅 Tor: ENABLED")
+                print(f"   [Tor] Tor: ENABLED")
             if stealth.get('proxies_enabled'):
-                print(f"   🔄 Proxies: {stealth.get('proxy_count', 0)} loaded")
+                print(f"   [IP] Proxies: {stealth.get('proxy_count', 0)} loaded")
             if stealth.get('exit_ip'):
-                print(f"   📡 Exit IP: {stealth.get('exit_ip')}")
+                print(f"   [IP] Exit IP: {stealth.get('exit_ip')}")
         
         # Statistics
         stats = report.get('statistics', {})
-        print(f"\n📈 Statistics:")
+        print(f"\n[Stat] Statistics:")
         print(f"   Open Ports: {stats.get('open_ports', 0)}")
         print(f"   Services Detected: {stats.get('services_detected', 0)}")
         print(f"   Vulnerabilities Found: {stats.get('vulnerabilities_found', 0)}")
@@ -64,14 +64,14 @@ class OutputHandler:
         scan_results = report.get('scan_results', {})
         open_ports = scan_results.get('open_ports', [])
         if open_ports:
-            print(f"\n🔓 Open Ports: {', '.join(map(str, open_ports[:20]))}")
+            print(f"\n[Port] Open Ports: {', '.join(map(str, open_ports[:20]))}")
             if len(open_ports) > 20:
                 print(f"   ... and {len(open_ports) - 20} more")
         
         # Services
         services = scan_results.get('services', [])
         if services:
-            print(f"\n🔍 Detected Services:")
+            print(f"\n[Search] Detected Services:")
             for svc in services[:10]:
                 print(f"   Port {svc['port']}: {svc['service']} ({svc['version']})")
             if len(services) > 10:
@@ -80,10 +80,10 @@ class OutputHandler:
         # Vulnerabilities
         vulnerabilities = report.get('vulnerabilities', [])
         if vulnerabilities:
-            print(f"\n⚠️  Vulnerabilities:")
+            print(f"\n[Warning] Vulnerabilities:")
             for vuln in vulnerabilities[:5]:
-                severity_emoji = self._get_severity_emoji(vuln.get('severity'))
-                print(f"   {severity_emoji} {vuln.get('cve_id')}: {vuln.get('description')}")
+                severity_tag = self._get_severity_tag(vuln.get('severity'))
+                print(f"   {severity_tag} {vuln.get('cve_id')}: {vuln.get('description')}")
                 print(f"      Port {vuln.get('port')} - {vuln.get('service')} {vuln.get('version')}")
             if len(vulnerabilities) > 5:
                 print(f"   ... and {len(vulnerabilities) - 5} more")
@@ -91,26 +91,26 @@ class OutputHandler:
         # Plugin findings
         plugin_findings = report.get('plugin_findings', [])
         if plugin_findings:
-            print(f"\n🔌 Plugin Findings:")
+            print(f"\n[Plugin] Plugin Findings:")
             for finding in plugin_findings[:5]:
-                severity_emoji = self._get_severity_emoji(finding.get('severity'))
-                print(f"   {severity_emoji} {finding.get('title')}")
+                severity_tag = self._get_severity_tag(finding.get('severity'))
+                print(f"   {severity_tag} {finding.get('title')}")
                 print(f"      {finding.get('description')}")
             if len(plugin_findings) > 5:
                 print(f"   ... and {len(plugin_findings) - 5} more")
         
         print("\n" + "="*60)
     
-    def _get_severity_emoji(self, severity: str) -> str:
-        """Get emoji for severity level"""
+    def _get_severity_tag(self, severity: str) -> str:
+        """Get text tag for severity level"""
         severity_map = {
-            'Critical': '🔴',
-            'High': '🟠',
-            'Medium': '🟡',
-            'Low': '🟢',
-            'Info': 'ℹ️'
+            'Critical': '[CRITICAL]',
+            'High': '[HIGH]',
+            'Medium': '[MEDIUM]',
+            'Low': '[LOW]',
+            'Info': '[INFO]'
         }
-        return severity_map.get(severity, 'ℹ️')
+        return severity_map.get(severity, '[INFO]')
     
     def generate_html_report(self, report: Dict[str, Any], filepath: str):
         """Generate HTML report (future enhancement)"""

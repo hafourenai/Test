@@ -1,106 +1,70 @@
-# 🕵️ Stealth Vulnerability Scanner v2.0
+# Love U N - Vulnerability Scanner
 
-**Professional vulnerability scanner with dual-engine architecture (Python + Go) featuring pure-Go self-contained binaries for maximum portability and stealth.**
+A professional-grade, anonymous vulnerability scanner with Tor integration, proxy rotation, and real-time NVD intelligence.
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
-[![Go](https://img.shields.io/badge/Go-1.21%2B-00ADD8)](https://golang.org/)
-[![License](https://img.shields.io/badge/License-Educational-green)](LICENSE)
+## Installation
 
-## 🎯 Features
+### Prerequisites
+- Python 3.9+
+- Go 1.18+
+- Tor (installed and running)
 
-### Core Capabilities
-- ⚡ **High-Performance Scanning**: Go-based port scanner with concurrent threading
-- 🔍 **Service Detection**: Banner grabbing and version fingerprinting
-- 🌐 **HTTP Analysis**: Security headers check, HTTP methods detection
-- 🗄️ **CVE Matching**: Automatic vulnerability identification against CVE database
-- 🔌 **Plugin System**: Extensible security check plugins
-- 💾 **Pure Go Database**: SQLite storage using `modernc.org/sqlite` (no CGO required)
-- 🌐 **REST API**: Integration-ready API server
+### Steps
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd Vuln
+   ```
 
-### 🔒 Stealth Features
-- 🔄 **Proxy Rotation**: Automatic rotation through multiple proxies
-- 🧅 **Tor Integration**: Route traffic through Tor network
-- 🎭 **Anti-Detection**: User-Agent randomization, adaptive rate limiting
-- 📡 **IP Verification**: Confirm exit IP before/after scans
-- ⏱️ **Request Jitter**: Random delays to avoid pattern detection
-- 🛡️ **WAF Evasion**: Stealth techniques to bypass web application firewalls
+2. **Install Python dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## 📋 Requirements
+3. **Build the Go scanner:**
+   ```bash
+   cd go
+   go build -o scanner.exe main.go
+   cd ..
+   ```
 
-### System Requirements
-- **Go**: 1.21 or higher (Recommended: 1.25+ for pure Go stability)
-- **Python**: 3.8 or higher
-- **OS**: Linux (Kali/Ubuntu), Windows, or macOS
-- **Tor** (optional): For Tor network integration
+4. **Configure Environment:**
+   Create a `.env` file in the root directory:
+   ```env
+   NVD_API_KEY=your_api_key_here (optional but recommended)
+   ```
 
-### Core Dependencies (Automatic)
-- **Go**: `modernc.org/sqlite`, `github.com/gorilla/mux`, `golang.org/x/net`
-- **Python**: `requests`, `stem`, `PySocks`, `pyyaml`
+## Usage
 
-## 🚀 Installation
-
-### 1. Build the Go Scan Engine
-The engine is now a **self-contained binary**. You don't need SQLite installed on your system to build or run it.
-
+### Verify Tor Connection
+Ensure Tor is running at `127.0.0.1:9050`, then run:
 ```bash
-cd go
-# For Linux (AMD64)
-export CGO_ENABLED=0
-go build -ldflags "-s -w" -o scanner main.go
-
-# For Windows (AMD64)
-set CGO_ENABLED=0
-go build -ldflags "-s -w" -o scanner.exe main.go
+python python/test_tor.py
 ```
 
-### 2. Setup Python Orchestrator
+### Run a Stealth Scan
+Scan a target anonymously through the Tor network:
 ```bash
-cd python
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-# Linux
-source venv/bin/activate
-
-pip install -r ../requirements.txt
+python python/main.py <target> --use-tor --accept-disclaimer
 ```
 
-## 📖 Usage
-
-### Specifying the Target
-Target can be an **IP address** (e.g., `192.168.1.1`) or a **Domain** (e.g., `example.com`).
-> [!IMPORTANT]
-> Do **NOT** include `http://` or `https://` in the CLI target argument.
-
-### Basic Scan (CLI)
+### Run with Proxy Rotation
 ```bash
-# Using the Go engine directly (Fastest)
-./go/scanner -target scanme.nmap.org -start 1 -end 1000
-
-# Using the Python Orchestrator (Recommended for Stealth)
-python python/main.py scanme.nmap.org --use-tor --accept-disclaimer
+python python/main.py <target> --use-proxies --proxies-file proxies.txt --accept-disclaimer
 ```
 
-### Advanced Stealth Options
-- `--use-proxies`: Enable proxy rotation from `proxies.txt`
-- `--use-tor`: Route all traffic through the Tor network
-- `--threads 200`: Increase scanning speed
-- `-o results.json`: Save detailed findings to JSON
-
-### REST API Mode
-Start the scanner as a background service:
+### Cleanup Project
+Remove Python cache and temporary files:
 ```bash
-./go/scanner -api -apiport 8000
-```
-Then interact via REST:
-`POST /api/scan` with `{"target": "example.com"}`
-
-## 🗄️ Database Access
-Scan history is stored in `go/vulnerabilities.db`. Since it's a standard SQLite file, you can query it:
-```bash
-sqlite3 go/vulnerabilities.db "SELECT * FROM scans;"
+python clean.py
 ```
 
-## ⚖️ Legal Disclaimer
-**Educational Use Only.** Unauthorized scanning is illegal. You are responsible for your actions. See full disclaimer in `main.py` or `LICENSE`.
+### Options
+- `--target <target>`: IP or domain to scan
+- `--use-tor`: Route all traffic through Tor
+- `--use-proxies`: Use proxy rotation from a file
+- `--no-cve`: Disable NVD vulnerability correlation
+- `--output <dir>`: Directory for reports (default: ./reports)
+
+## Disclaimer
+This tool is for educational and ethical research purposes only. Unauthorized scanning is illegal.
