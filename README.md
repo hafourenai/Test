@@ -1,70 +1,84 @@
 # Love U N - Vulnerability Scanner
 
-A professional-grade, anonymous vulnerability scanner with Tor integration, proxy rotation, and real-time NVD intelligence.
+Pemindai kerentanan profesional dengan anonimitas tinggi, terintegrasi Tor, rotasi proxy, dan intelijen NVD real-time.
 
-## Installation
+## Instalasi
 
-### Prerequisites
-- Python 3.9+
-- Go 1.18+
-- Tor (installed and running)
+### Prasyarat
 
-### Steps
-1. **Clone the repository:**
+* Python 3.9+
+* Go 1.18+
+* Tor (sudah terpasang dan berjalan)
+
+### Langkah-langkah
+
+1. **Clone repositori:**
+
    ```bash
-   git clone <repository-url>
-   cd Vuln
+   git clone https://github.com/hafourenai/Test.git
+   cd Test
    ```
 
-2. **Install Python dependencies:**
+2. **Instal dependensi Python:**
+
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Build the Go scanner:**
+3. **Build scanner Go:**
+
    ```bash
    cd go
    go build -o scanner.exe main.go
    cd ..
    ```
 
-4. **Configure Environment:**
-   Create a `.env` file in the root directory:
+4. **Konfigurasi Environment:**
+   Buat file `.env` di direktori root:
+
    ```env
-   NVD_API_KEY=your_api_key_here (optional but recommended)
+   NVD_API_KEY=your_api_key_here (opsional)
    ```
 
-## Usage
+## Penggunaan
 
-### Verify Tor Connection
-Ensure Tor is running at `127.0.0.1:9050`, then run:
+### Verifikasi Koneksi Tor
+
+Pastikan Tor berjalan di `127.0.0.1:9050`, lalu jalankan:
+
 ```bash
 python python/test_tor.py
 ```
 
-### Run a Stealth Scan
-Scan a target anonymously through the Tor network:
+### Menjalankan Stealth Scan
+
+Memindai target secara anonim melalui jaringan Tor:
+
 ```bash
 python python/main.py <target> --use-tor --accept-disclaimer
 ```
 
-### Run with Proxy Rotation
+### Menjalankan dengan Rotasi Proxy
+
 ```bash
 python python/main.py <target> --use-proxies --proxies-file proxies.txt --accept-disclaimer
 ```
 
-### Cleanup Project
-Remove Python cache and temporary files:
+### Membersihkan Proyek
+
+Menghapus cache Python dan file sementara:
+
 ```bash
 python clean.py
 ```
 
-### Options
-- `--target <target>`: IP or domain to scan
-- `--use-tor`: Route all traffic through Tor
-- `--use-proxies`: Use proxy rotation from a file
-- `--no-cve`: Disable NVD vulnerability correlation
-- `--output <dir>`: Directory for reports (default: ./reports)
+### Opsi
 
-## Disclaimer
-This tool is for educational and ethical research purposes only. Unauthorized scanning is illegal.
+* `--target <target>`: IP atau domain yang akan dipindai
+* `--use-tor`: Mengarahkan seluruh trafik melalui Tor
+* `--use-proxies`: Menggunakan rotasi proxy dari file
+* `--no-cve`: Menonaktifkan korelasi kerentanan NVD
+* `--output <dir>`: Direktori output laporan (default: ./reports)
+
+[DISCLAIMER!]
+Alat ini hanya untuk tujuan edukasi dan riset etis. Pemindaian tanpa izin adalah tindakan ilegal.
