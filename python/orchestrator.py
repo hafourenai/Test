@@ -13,13 +13,13 @@ from pathlib import Path
 
 # Import service fingerprinter
 try:
-    from modules.service_fingerprinter import ServiceFingerprinter
+    from .modules.service_fingerprinter import ServiceFingerprinter
 except ImportError:
     # Fallback if modules package not in path
     import sys
-    sys.path.insert(0, str(Path(__file__).parent))
-    from modules.service_fingerprinter import ServiceFingerprinter
-    from build import build_go_scanner
+    # sys.path.insert(0, str(Path(__file__).parent))
+    from .modules.service_fingerprinter import ServiceFingerprinter
+    from .build import build_go_scanner
 
 logger = logging.getLogger(__name__)
 

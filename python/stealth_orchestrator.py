@@ -10,16 +10,16 @@ import sys
 import logging
 from typing import Dict, List, Any
 from pathlib import Path
-from proxy_manager import ProxyManager, StealthScanner
-from build import build_go_scanner
+from .proxy_manager import ProxyManager, StealthScanner
+from .build import build_go_scanner
 import os
 
 # Import service fingerprinter
 try:
-    from modules.service_fingerprinter import ServiceFingerprinter
+    from .modules.service_fingerprinter import ServiceFingerprinter
 except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent))
-    from modules.service_fingerprinter import ServiceFingerprinter
+    # sys.path.insert(0, str(Path(__file__).parent))
+    from .modules.service_fingerprinter import ServiceFingerprinter
 
 logger = logging.getLogger(__name__)
 

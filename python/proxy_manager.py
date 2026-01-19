@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Optional, List, Dict
 
 try:
-    from tor_session import TorSession
-    from config import TOR_SOCKS_PROXY, TOR_CONTROL_PORT
+    from .tor_session import TorSession
+    from .config import TOR_SOCKS_PROXY, TOR_CONTROL_PORT
 except ImportError:
     TorSession = None
 

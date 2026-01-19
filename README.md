@@ -95,13 +95,13 @@ curl -X POST http://localhost:8000/api/scan \
 Python bertugas sebagai pengatur strategi (stealth orchestration) dan analisis kerentanan (CVE correlation).
 
 ### Penggunaan Utama
-
+Jalankan scanner menggunakan sintaks module (WAJIB):
 ```bash
 # Scan dengan anonimitas Tor
-python python/main.py <target> --use-tor --accept-disclaimer
+python -m python.main <target> --use-tor --accept-disclaimer
 
 # Scan dengan rotasi Proxy
-python python/main.py <target> --use-proxies --proxies-file proxies.txt --accept-disclaimer
+python -m python.main <target> --use-proxies --proxies-file proxies.txt --accept-disclaimer
 ```
 
 ---

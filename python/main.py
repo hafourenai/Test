@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# sys.path.insert(0, str(Path(__file__).parent))
 
 def load_env(env_path: Path):
     """Simple .env loader to avoid extra dependencies"""
@@ -23,15 +23,15 @@ def load_env(env_path: Path):
                     key, value = line.strip().split('=', 1)
                     os.environ[key.strip()] = value.strip()
 
-from stealth_orchestrator import StealthOrchestrator
-from orchestrator import ScanOrchestrator
-from plugin_loader import PluginLoader
-from output_handler import OutputHandler
-from proxy_manager import ProxyManager
+from .stealth_orchestrator import StealthOrchestrator
+from .orchestrator import ScanOrchestrator
+from .plugin_loader import PluginLoader
+from .output_handler import OutputHandler
+from .proxy_manager import ProxyManager
 
 # Import NVD components
 try:
-    from modules.nvd import CVEMatcher
+    from .modules.nvd import CVEMatcher
     NVD_AVAILABLE = True
 except ImportError:
     NVD_AVAILABLE = False
@@ -39,7 +39,7 @@ except ImportError:
 
 # Import config
 try:
-    from config import setup_config
+    from .config import setup_config
     setup_config()
 except ImportError:
     pass
