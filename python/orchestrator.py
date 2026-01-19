@@ -31,6 +31,41 @@ class ScanOrchestrator:
         self.scan_results = {}
         self.fingerprinter = ServiceFingerprinter()
         logger.info("🔍 Active Service Fingerprinting Engine initialized")
+    
+    def normalize_services(self, services: List[Any]) -> List[Dict[str, Any]]:
+        """
+        Service Data Normalization Layer - Enforces canonical service schema.
+        
+        This is the single source of truth for service structure.
+        Transforms legacy formats into the required contract:
+        
+        Input (legacy):  [22, 80, 443]
+        Output (canonical): [{"port": 22, "state": "open"}, ...]
+        
+        Args:
+            services: Raw service data (can be list of ints or dicts)
+            
+        Returns:
+            List of normalized service dictionaries
+        """
+        normalized = []
+        
+        for svc in services:
+            # Legacy format: [22, 80, 443]
+            if isinstance(svc, int):
+                normalized.append({
+                    "port": svc,
+                    "state": "open"
+                })
+            
+            # Partial dict format
+            elif isinstance(svc, dict):
+                normalized.append({
+                    "port": svc.get("port"),
+                    "state": svc.get("state", "open")
+                })
+        
+        return normalized
         
     def validate_target(self, target: str) -> bool:
         """Validate target scope and format"""
@@ -113,7 +148,7 @@ class ScanOrchestrator:
     
     def _fingerprint_services(self, target: str, scan_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Actively fingerprint all detected services.
+        Actively fingerprint all detected services with normalization.
         
         This is the critical missing layer that enables CVE correlation.
         Converts: Port 22 → OpenSSH 8.9p1
@@ -129,18 +164,19 @@ class ScanOrchestrator:
         fingerprinted = []
         open_ports = scan_data.get('open_ports', [])
         
-        for port_info in open_ports:
-            port = port_info.get('port')
-            if not port:
-                continue
+        # STEP 1 — Enforce canonical schema via normalization layer
+        normalized_services = self.normalize_services(open_ports)
+        
+        for svc in normalized_services:
+            port = svc["port"]
             
             # Perform active fingerprinting
             fingerprint = self.fingerprinter.fingerprint(target, port)
             
-            # Merge port info with fingerprint data
+            # Merge normalized service with fingerprint data
             enriched_service = {
                 'port': port,
-                'state': port_info.get('state', 'open'),
+                'state': svc["state"],
                 'service': fingerprint.get('service', 'unknown'),
                 'product': fingerprint.get('product', 'unknown'),
                 'version': fingerprint.get('version', 'unknown'),
