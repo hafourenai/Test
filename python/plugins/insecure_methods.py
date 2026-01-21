@@ -4,7 +4,7 @@ Insecure HTTP Methods Plugin
 Checks for dangerous HTTP methods enabled
 """
 
-from plugins.base_plugin import BasePlugin
+from python.plugins.base_plugin import BasePlugin
 from typing import Dict, List, Any
 
 

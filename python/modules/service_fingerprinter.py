@@ -110,13 +110,14 @@ class ServiceFingerprinter:
         # Generic TCP banner grab
         return self._fingerprint_generic(host, port)
     
-    def _fingerprint_http(self, host: str, port: int) -> Dict[str, Any]:
+    def _fingerprint_http(self, host: str, port: int, is_ssl: bool = False) -> Dict[str, Any]:
         """
         Fingerprint HTTP/HTTPS services by analyzing headers.
         
         Args:
             host: Target hostname
             port: Target port
+            is_ssl: Whether to use HTTPS
             
         Returns:
             Service fingerprint dictionary
@@ -126,7 +127,7 @@ class ServiceFingerprinter:
             from requests.packages.urllib3.exceptions import InsecureRequestWarning
             requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         
-        scheme = "https" if port in (443, 8443) else "http"
+        scheme = "https" if is_ssl or port in (443, 8443) else "http"
         url = f"{scheme}://{host}:{port}"
         
         try:

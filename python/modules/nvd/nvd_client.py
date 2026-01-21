@@ -10,17 +10,19 @@ import os
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import json
+import requests
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from tor_session import TorSession
-    from config import NVD_API_KEY, TOR_SOCKS_PROXY
+    from python.tor_session import TorSession
+    from python.config import NVD_API_KEY, TOR_SOCKS_PROXY
     TOR_AVAILABLE = True
 except ImportError:
     TOR_AVAILABLE = False
+    TorSession = None  # Define TorSession to avoid NameError
     import requests
 
 logger = logging.getLogger(__name__)

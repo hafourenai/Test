@@ -4,7 +4,7 @@ Security Headers Plugin
 Checks for missing security headers in HTTP responses
 """
 
-from plugins.base_plugin import BasePlugin
+from python.plugins.base_plugin import BasePlugin
 from typing import Dict, List, Any
 
 

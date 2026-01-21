@@ -210,7 +210,7 @@ def main():
     
     # Initialize CVE matcher with Tor support if enabled
     if NVD_AVAILABLE:
-        cve_matcher = CVEMatcher(api_key=nvd_key, use_tor=use_stealth)
+        cve_matcher = CVEMatcher(nvd_api_key=nvd_key, use_tor=use_stealth)
         if use_stealth:
             logger.info("[Tor] NVD API will use Tor network")
     else:
