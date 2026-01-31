@@ -104,6 +104,26 @@ python -m python.main <target> --use-tor --accept-disclaimer
 python -m python.main <target> --use-proxies --proxies-file proxies.txt --accept-disclaimer
 ```
 
+### 🎯 Pemindai Port Stealth (Budgeted)
+
+Gunakan flag `--stealth` untuk pemindaian port yang berfokus pada kerahasiaan dan kepatuhan anggaran (budget compliance). Mode ini menggunakan mesin pemindaian Python internal yang lebih lambat namun lebih sulit dideteksi.
+
+#### 🚀 Cara Penggunaan
+
+```bash
+# Mode Stealth (Sangat Direkomendasikan):
+# - Mengaktifkan delay acak (0.5s - 2.0s) antar percobaan.
+# - Membatasi hanya 10 port acak dari daftar umum.
+# - Memprioritaskan port web (80, 443).
+# - Budget ketat: Maksimal 20 percobaan atau 60 detik.
+python -m python.main <target> --stealth --accept-disclaimer
+```
+
+#### ⚙️ Ketentuan Teknis
+* **Single-threaded**: Menghindari anomali trafik yang mencurigakan.
+* **Deterministic Randomness**: Pemilihan port acak namun terkendali dalam mode stealth.
+* **Budget Guards**: Otomatis berhenti jika mencapai batas waktu atau jumlah percobaan untuk menghindari deteksi IDS.
+
 ---
 
 ## 🧹 Pembersihan Proyek

@@ -28,6 +28,9 @@ from .orchestrator import ScanOrchestrator
 from .plugin_loader import PluginLoader
 from .output_handler import OutputHandler
 from .proxy_manager import ProxyManager
+from .controller import StealthController
+from .port_selector import PortSelector
+from .scanner import Scanner
 
 # Import NVD components
 try:
@@ -226,6 +229,20 @@ def main():
         sys.exit(1)
     
     # Execute scanner
+    if args.stealth:
+        print(f"\n[STEALTH] Starting budgeted stealth scan on {args.target}")
+        port_selector = PortSelector()
+        scanner = Scanner()
+        controller = StealthController(
+            port_selector=port_selector,
+            scanner=scanner,
+            target=args.target,
+            stealth=True
+        )
+        controller.start_scan()
+        print("\n[STEALTH] Budgeted scan completed.")
+        sys.exit(0)
+
     scan_results = orchestrator.execute_go_scanner(
         target=args.target,
         start_port=args.start_port,
