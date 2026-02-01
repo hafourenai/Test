@@ -38,7 +38,7 @@ try:
     NVD_AVAILABLE = True
 except ImportError:
     NVD_AVAILABLE = False
-    print("⚠️  Warning: NVD modules not available")
+    print("  Warning: NVD modules not available")
 
 # Import config
 try:
@@ -58,10 +58,9 @@ def print_banner():
     """Display scanner banner"""
     banner = """
 ╔═══════════════════════════════════════════════════╗
-║                  LOVE U N - v2.0                  ║
+║                  LOVE U N                         ║
 ║   Python + Go + Tor + Proxy Rotation              ║
 ║   Tor Support | Proxy Rotation                    ║
-║   For Educational & Research Use Only             ║
 ╚═══════════════════════════════════════════════════╝
     """
     print(banner)
@@ -109,9 +108,9 @@ def test_proxy_setup(proxy_manager: ProxyManager):
         if proxy_ip != real_ip:
             print("     Proxy/Tor is working correctly!")
         else:
-            print("   ⚠️  Warning: IP not changed, proxy may not be working")
+            print("     Warning: IP not changed, proxy may not be working")
     else:
-        print("   ⚠️  No proxies loaded and Tor not enabled")
+        print("     No proxies loaded and Tor not enabled")
 
 
 def main():
@@ -148,7 +147,18 @@ def main():
     stealth_group.add_argument('--rotate-interval', type=int, default=10,
                               help='Rotate proxy every N requests (default: 10)')
     
+    stealth_group.add_argument('--stealth', action='store_true',
+
+                               help='Enable budgeted stealth mode (limited attempts, random delays)')
+
+    
+
+
+
+
     # Scanner options
+
+
     parser.add_argument('-o', '--output', help='Output file (JSON)')
     parser.add_argument('--no-cve', action='store_true',
                        help='Skip CVE matching')
@@ -180,14 +190,15 @@ def main():
         print_disclaimer()
         response = input("\nDo you accept this disclaimer? (yes/no): ")
         if response.lower() not in ['yes', 'y']:
-            print("❌ Disclaimer not accepted. Exiting.")
+            print("Disclaimer not accepted. Exiting.")
             sys.exit(1)
     
-    # Initialize stealth orchestrator
-    use_stealth = args.use_proxies or args.use_tor
+    # Initialize orchestrator
+    # Use StealthOrchestrator if: proxies, Tor, OR stealth mode is requested
+    use_stealth_features = args.use_proxies or args.use_tor 
     
-    if use_stealth:
-        logger.info("[!] Stealth mode enabled")
+    if use_stealth_features or args.stealth:
+        logger.info("[!] Stealth orchestrator enabled")
         orchestrator = StealthOrchestrator(
             use_proxies=args.use_proxies,
             use_tor=args.use_tor,
@@ -213,8 +224,8 @@ def main():
     
     # Initialize CVE matcher with Tor support if enabled
     if NVD_AVAILABLE:
-        cve_matcher = CVEMatcher(nvd_api_key=nvd_key, use_tor=use_stealth)
-        if use_stealth:
+        cve_matcher = CVEMatcher(nvd_api_key=nvd_key, use_tor=use_stealth_features)
+        if use_stealth_features:
             logger.info("[Tor] NVD API will use Tor network")
     else:
         cve_matcher = None
@@ -229,6 +240,8 @@ def main():
         sys.exit(1)
     
     # Execute scanner
+    scan_results = None
+    
     if args.stealth:
         print(f"\n[STEALTH] Starting budgeted stealth scan on {args.target}")
         port_selector = PortSelector()
@@ -239,18 +252,38 @@ def main():
             target=args.target,
             stealth=True
         )
+        
+        # Step 1: Budgeted Discovery
         controller.start_scan()
-        print("\n[STEALTH] Budgeted scan completed.")
-        sys.exit(0)
-
-    scan_results = orchestrator.execute_go_scanner(
-        target=args.target,
-        start_port=args.start_port,
-        end_port=args.end_port,
-        timeout=args.timeout,
-        threads=args.threads,
-        use_proxy=use_stealth
-    )
+        discovery_results = controller.get_results()
+        
+        print(f"\n[STEALTH] Discovery phase complete:")
+        print(f"   Ports found: {len(discovery_results['open_ports'])}")
+        print(f"   Attempts: {discovery_results['stealth_metadata']['attempts_used']}/{discovery_results['stealth_metadata']['max_attempts']}")
+        print(f"   Duration: {discovery_results['stealth_metadata']['duration']:.1f}s")
+        
+        # Step 2: Lightweight Fingerprinting (if ports found)
+        if discovery_results['open_ports']:
+            scan_results = orchestrator.fingerprint_discovered_services(
+                target=args.target,
+                ports=discovery_results['open_ports']
+            )
+            # Preserve stealth metadata
+            scan_results['stealth_metadata'] = discovery_results['stealth_metadata']
+        else:
+            print("\n[STEALTH] No open ports discovered")
+            print("  Scan completed successfully")
+            sys.exit(0)
+    else:
+        # Standard full-range scan
+        scan_results = orchestrator.execute_go_scanner(
+            target=args.target,
+            start_port=args.start_port,
+            end_port=args.end_port,
+            timeout=args.timeout,
+            threads=args.threads,
+            use_proxy=use_stealth_features
+        )
     
     if not scan_results:
         print("❌ Scan failed or returned no results")
@@ -292,16 +325,16 @@ def main():
             else:
                 print("  No known vulnerabilities found")
         else:
-            print("⚠️  No services detected for CVE matching")
+            print("  No services detected for CVE matching")
     elif args.no_cve:
         print("\n⏭️  CVE matching skipped (--no-cve flag)")
     else:
-        print("\n⚠️  CVE matching unavailable (NVD modules not loaded)")
+        print("\n  CVE matching unavailable (NVD modules not loaded)")
     
     # Plugin execution
     plugin_results = []
     if not args.no_plugins:
-        print("\n🔌 Running security plugins...")
+        print("\n Running security plugins...")
         plugins = plugin_loader.load_all_plugins()
         for plugin in plugins:
             findings = plugin.analyze(scan_results)
@@ -317,6 +350,8 @@ def main():
             "timestamp": datetime.utcnow().isoformat(),
             "target": args.target,
             "stealth_mode": {
+                "enabled": args.stealth or use_stealth_features,
+                "budgeted": args.stealth,
                 "proxies_enabled": args.use_proxies,
                 "tor_enabled": args.use_tor,
                 "proxy_count": len(orchestrator.proxy_manager.proxies) if hasattr(orchestrator, 'proxy_manager') and orchestrator.proxy_manager else 0
@@ -340,8 +375,9 @@ def main():
     
     # Output results
     if args.output:
-        output_handler.save_json(final_report, args.output)
-        print(f"\n💾 Report saved to: {args.output}")
+        saved_path = output_handler.save_json(final_report, args.output)
+        if saved_path:
+            print(f"\n Full report available at: {saved_path}")
     else:
         output_handler.print_summary(final_report)
     
@@ -350,7 +386,7 @@ def main():
         print(json.dumps(final_report, indent=2))
     
     # Stealth mode summary
-    if use_stealth and hasattr(orchestrator, 'proxy_manager'):
+    if use_stealth_features and hasattr(orchestrator, 'proxy_manager'):
         print("\n🔒 Stealth Mode Summary:")
         if args.use_tor:
             print("     Tor: ENABLED")
@@ -369,7 +405,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n⚠️  Scan interrupted by user")
+        print("\n  Scan interrupted by user")
         sys.exit(130)
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)

@@ -104,7 +104,7 @@ class StealthOrchestrator:
         
         restricted = ['localhost', '127.0.0.1', '0.0.0.0']
         if target in restricted:
-            print(f"⚠️  Warning: Scanning {target} requires explicit permission")
+            print(f"  Warning: Scanning {target} requires explicit permission")
             return False
             
         return True
@@ -234,6 +234,38 @@ class StealthOrchestrator:
                 )
         
         return fingerprinted
+    
+    def fingerprint_discovered_services(self, target: str, ports: list) -> dict:
+        """
+        Lightweight fingerprinting for stealth-discovered services.
+        
+        This bridges budgeted discovery (StealthController) with 
+        the enrichment pipeline (service fingerprinting).
+        
+        Args:
+            target: Target host
+            ports: List of discovered open ports from stealth scan
+            
+        Returns:
+            Scan results dict compatible with existing CVE/reporting pipeline
+        """
+        print(f"\n  Fingerprinting {len(ports)} discovered service(s)...")
+        
+        # Create minimal scan_data structure
+        scan_data = {
+            "open_ports": ports,
+            "target": target,
+            "stealth_mode": True
+        }
+        
+        # Fingerprint using existing engine (already stealth-aware)
+        fingerprinted = self._fingerprint_services(target, scan_data)
+        scan_data['services'] = fingerprinted
+        
+        self.scan_results = scan_data
+        
+        print(f"  Fingerprinted: {len(fingerprinted)} services")
+        return scan_data
     
     def get_results(self) -> Dict[str, Any]:
         """Get current scan results"""

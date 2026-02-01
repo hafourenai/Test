@@ -126,6 +126,36 @@ python -m python.main <target> --stealth --accept-disclaimer
 
 ---
 
+## 📊 Manajemen Data (SQLite)
+
+Hasil pemindaian disimpan secara otomatis dalam database SQLite (`go/vulnerabilities.db`).
+
+### Cara Membuka Database:
+
+1.  **Menggunakan Interface Grafis (GUI) [REKOMENDASI]:**
+    - Unduh [DB Browser for SQLite](https://sqlitebrowser.org/).
+    - Buka aplikasi dan pilih **Open Database**.
+    - Pilih file `go/vulnerabilities.db`.
+
+2.  **Menggunakan VS Code:**
+    - Instal ekstensi **"SQLite Viewer"**.
+    - Klik kanan pada file `vulnerabilities.db` -> **Open with SQLite Viewer**.
+
+3.  **Menggunakan CLI (sqlite3):**
+    ```bash
+    cd go
+    sqlite3 vulnerabilities.db
+    # Query contoh:
+    SELECT * FROM scans ORDER BY timestamp DESC LIMIT 5;
+    ```
+
+### Struktur Tabel:
+- `scans`: Target dan waktu pemindaian.
+- `services`: Port, versi aplikasi, dan banner service.
+- `http_findings`: Header keamanan yang hilang dan metode HTTP yang diizinkan.
+
+---
+
 ## 🧹 Pembersihan Proyek
 
 Gunakan `clean.py` untuk menghapus file sementara dan log:

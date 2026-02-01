@@ -71,11 +71,8 @@ class ScanOrchestrator:
         print(f"   Threads: {threads}")
         
         try:
-            # Step 1: Build Scanner (Clean Architecture)
-            # This handles path resolution and error reporting automatically
             scanner_path = build_go_scanner()
-            
-            # Step 2: Execute Scanner
+
             scan_cmd = [
                 scanner_path,
                 "-target", target,
@@ -85,9 +82,7 @@ class ScanOrchestrator:
                 "-threads", str(threads)
             ]
             
-            # Use proxy config if requested
-            # (Note: The Go scanner should handle env vars or flags for proxy depending on implementation)
-            # Assuming env vars HTTP_PROXY/HTTPS_PROXY are picked up if set in main.py
+          
             
             result = subprocess.run(scan_cmd, capture_output=True, 
                                   text=True, timeout=300, check=False)
@@ -95,16 +90,12 @@ class ScanOrchestrator:
             if result.returncode != 0:
                 raise RuntimeError(f"Scanner execution failed:\n{result.stderr}")
             
-            # Parse JSON output
             try:
                 scan_data = json.loads(result.stdout)
             except json.JSONDecodeError:
-                # Fallback: sometimes scanner might output logs mixed with JSON if not careful
-                # But our scanner outputs pretty JSON at the end.
                 logger.error(f"Failed to parse JSON. Raw output:\n{result.stdout[:200]}...")
                 return {}
             
-            # === ACTIVE SERVICE FINGERPRINTING ===
             print(f"\n[Search] Active Service Fingerprinting in progress...")
             fingerprinted_services = self._fingerprint_services(target, scan_data)
             scan_data['services'] = fingerprinted_services
@@ -148,16 +139,13 @@ class ScanOrchestrator:
         if open_ports:
             print(f"\n[Port] Open Ports: {', '.join(map(str, open_ports[:20]))}")
         
-        # STEP 1 — Enforce canonical schema via normalization layer
         normalized_services = self.normalize_services(open_ports)
         
         for svc in normalized_services:
             port = svc["port"]
-            
-            # Perform active fingerprinting
+
             fingerprint = self.fingerprinter.fingerprint(target, port)
-            
-            # Merge normalized service with fingerprint data
+
             enriched_service = {
                 'port': port,
                 'state': svc["state"],
@@ -168,8 +156,7 @@ class ScanOrchestrator:
             }
             
             fingerprinted.append(enriched_service)
-            
-            # Log successful identifications
+
             if fingerprint.get('product') != 'unknown':
                 logger.info(
                     f"Port {port}: {fingerprint['service']} "
@@ -194,7 +181,7 @@ class ScanOrchestrator:
         print(f"[Time] Timestamp: {metadata.get('timestamp', 'N/A')}")
         print(f"[Build] Scanner Version: {metadata.get('scanner_version', 'N/A')}")
         
-        # Stealth mode info
+        # Stealth mode
         stealth = metadata.get('stealth_mode', {})
         if stealth.get('proxies_enabled') or stealth.get('tor_enabled'):
             print(f"\n[Stealth] Stealth Mode:")
@@ -205,15 +192,13 @@ class ScanOrchestrator:
             if stealth.get('exit_ip'):
                 print(f"   [IP] Exit IP: {stealth.get('exit_ip')}")
 
-        # Services
         scan_results = report.get('scan_results', {})
         services = scan_results.get('services', [])
         if services:
             print(f"\n[Search] Detected Services:")
             for svc in services:
                 print(f"   - Port {svc.get('port')}: {svc.get('service')} {svc.get('product')} {svc.get('version')}")
-        
-        # Vulnerabilities
+
         vulnerabilities = report.get('vulnerabilities', [])
         if vulnerabilities:
             print(f"\n[Warning] Vulnerabilities:")

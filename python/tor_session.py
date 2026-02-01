@@ -271,12 +271,12 @@ class TorSession:
                 return True
                 
         except ImportError:
-            logger.warning("⚠️  stem library not installed")
+            logger.warning("  stem library not installed")
             logger.info("   Install with: pip install stem")
             return False
             
         except Exception as e:
-            logger.warning(f"⚠️  Could not renew Tor identity: {e}")
+            logger.warning(f"  Could not renew Tor identity: {e}")
             logger.info("   Make sure Tor control port is accessible")
             return False
     

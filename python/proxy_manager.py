@@ -131,7 +131,7 @@ class ProxyManager:
             if self._check_tor_running():
                 logger.info("  Tor service started successfully")
             else:
-                logger.warning("⚠️  Could not start Tor automatically")
+                logger.warning("  Could not start Tor automatically")
                 logger.info("Please start Tor manually: sudo systemctl start tor")
         
         except Exception as e:

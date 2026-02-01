@@ -17,17 +17,56 @@ class OutputHandler:
         self.output_dir.mkdir(exist_ok=True)
     
     def save_json(self, data: Dict[str, Any], filepath: str):
-        """Save scan results as JSON"""
+        """Save scan results as JSON with automatic filename generation for directories"""
         try:
             output_path = Path(filepath)
+            
+            # Detect if this is a directory path (exists and is dir, OR looks like a directory)
+            # A path "looks like a directory" if:
+            # - It has no file extension (no suffix)
+            # - OR it exists and is a directory
+            # - OR it ends with a path separator
+            is_directory = (
+                (output_path.exists() and output_path.is_dir()) or
+                (not output_path.suffix and not output_path.name.endswith('.json')) or
+                str(filepath).endswith(('/', '\\'))
+            )
+            
+            if is_directory:
+                # Auto-generate filename based on scan metadata
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                target = data.get('metadata', {}).get('target', 'unknown')
+                # Sanitize target for filename
+                target = target.replace(':', '_').replace('/', '_').replace('\\', '_')
+                
+                # Determine scan mode for filename
+                stealth_meta = data.get('metadata', {}).get('stealth_mode', {})
+                if stealth_meta.get('budgeted'):
+                    mode = 'stealth'
+                elif stealth_meta.get('enabled'):
+                    mode = 'proxy'
+                else:
+                    mode = 'scan'
+                
+                filename = f"{mode}_{target}_{timestamp}.json"
+                output_path = output_path / filename
+                print(f"[Info] Auto-generated filename: {filename}")
+            
+            # Ensure parent directory exists
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(output_path, 'w') as f:
-                json.dump(data, f, indent=2)
+            # Write JSON file
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
             
             print(f"[Success] Report saved to: {output_path}")
+            return str(output_path)
+            
         except Exception as e:
-            print(f"[Error] Error saving report: {e}")
+            print(f"[Error] Failed to save report: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     def print_summary(self, report: Dict[str, Any]):
         """Print formatted summary to console"""

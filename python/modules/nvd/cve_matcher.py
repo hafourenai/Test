@@ -147,13 +147,13 @@ class CVEMatcher:
                 report += f"   🟢 Low: {finding['low']}\n"
             
             # Top CVEs
-            report += f"\n   📋 Top {min(5, len(finding['cves']))} CVEs:\n"
+            report += f"\n     Top {min(5, len(finding['cves']))} CVEs:\n"
             for i, cve in enumerate(finding['cves'][:5], 1):
                 cvss = cve.get('cvss_v3') or cve.get('cvss_v2') or 'N/A'
                 report += f"\n   {i}. {cve['id']} - {cve['severity']}\n"
                 report += f"      CVSS: {cvss}\n"
                 report += f"      {cve['description'][:120]}...\n"
-                report += f"      🔗 {cve['url']}\n"
+                report += f"        {cve['url']}\n"
             
             report += "\n" + "-"*70 + "\n"
         
@@ -177,7 +177,7 @@ class CVEMatcher:
         with open(filename, 'w') as f:
             json.dump(findings, f, indent=2)
         
-        logger.info(f"💾 Vulnerability report exported to {filename}")
+        logger.info(f" Vulnerability report exported to {filename}")
     
     def export_csv(self, findings: List[Dict], filename: str = 'vulnerabilities.csv'):
         """Export findings to CSV file"""
@@ -204,7 +204,7 @@ class CVEMatcher:
                         cve['url']
                     ])
         
-        logger.info(f"💾 CSV report exported to {filename}")
+        logger.info(f" CSV report exported to {filename}")
 
 
 # Example usage

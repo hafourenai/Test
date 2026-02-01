@@ -176,7 +176,7 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n\n⚠️  Test interrupted by user")
+        print("\n\n  Test interrupted by user")
         sys.exit(130)
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
