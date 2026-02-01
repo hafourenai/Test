@@ -36,16 +36,14 @@ Pemindai kerentanan profesional dengan anonimitas tinggi, terintegrasi Tor, rota
 
 Go berfungsi sebagai mesin pemindaian berperforma tinggi (high-performance scanning engine).
 
-### 🛠️ Membangun (Build) Scanner
-
-Jika Anda belum memiliki `scanner.exe` atau ingin membangun ulang dari source:
+### Membangun (Build) Scanner
 
 ```bash
 cd go
 go build -o scanner.exe main.go
 ```
 
-### 🚀 Cara Menggunakan Go Scanner
+### Cara Menggunakan Go Scanner
 
 #### 1. Mode CLI (Standalone)
 Gunakan ini untuk pemindaian cepat langsung dari terminal:
@@ -85,12 +83,29 @@ curl -X POST http://localhost:8000/api/scan \
 
 4.  **Konfigurasi Environment:**
     Buat file `.env` di direktori root:
-
-    ```env
-    NVD_API_KEY=your_api_key_here (opsional)
+   
+    ```
+    touch .env
+    nano .env
     ```
 
-## 🐍 Komponen Python Orchestrator (`python/`)
+    ```env
+    NVD_API_KEY=your_api_key_here 
+    ```
+
+5.  **Proxies:**
+    Buat file `proxies.txt ` di direktori root:
+
+    ```
+    touch proxies.txt
+    nano proxies.txt
+    ```
+
+    ```proxies
+    dapatkan proxy rotation kamu sendiri yhh
+    ```
+
+##  Komponen Python Orchestrator (`python/`)
 
 Python bertugas sebagai pengatur strategi (stealth orchestration) dan analisis kerentanan (CVE correlation).
 
@@ -104,11 +119,11 @@ python -m python.main <target> --use-tor --accept-disclaimer
 python -m python.main <target> --use-proxies --proxies-file proxies.txt --accept-disclaimer
 ```
 
-### 🎯 Pemindai Port Stealth (Budgeted)
+### Pemindai Port Stealth (Budgeted)
 
 Gunakan flag `--stealth` untuk pemindaian port yang berfokus pada kerahasiaan dan kepatuhan anggaran (budget compliance). Mode ini menggunakan mesin pemindaian Python internal yang lebih lambat namun lebih sulit dideteksi.
 
-#### 🚀 Cara Penggunaan
+####  Cara Penggunaan
 
 ```bash
 # Mode Stealth (Sangat Direkomendasikan):
@@ -119,14 +134,14 @@ Gunakan flag `--stealth` untuk pemindaian port yang berfokus pada kerahasiaan da
 python -m python.main <target> --stealth --accept-disclaimer
 ```
 
-#### ⚙️ Ketentuan Teknis
+####  Ketentuan Teknis
 * **Single-threaded**: Menghindari anomali trafik yang mencurigakan.
 * **Deterministic Randomness**: Pemilihan port acak namun terkendali dalam mode stealth.
 * **Budget Guards**: Otomatis berhenti jika mencapai batas waktu atau jumlah percobaan untuk menghindari deteksi IDS.
 
 ---
 
-## 📊 Manajemen Data (SQLite)
+## Manajemen Data (SQLite)
 
 Hasil pemindaian disimpan secara otomatis dalam database SQLite (`go/vulnerabilities.db`).
 
@@ -156,7 +171,7 @@ Hasil pemindaian disimpan secara otomatis dalam database SQLite (`go/vulnerabili
 
 ---
 
-## 🧹 Pembersihan Proyek
+## Pembersihan Proyek
 
 Gunakan `clean.py` untuk menghapus file sementara dan log:
 
@@ -177,4 +192,4 @@ python clean.py
 ---
 
 **DISCLAIMER!**
-Alat ini hanya untuk tujuan edukasi dan riset etis. Pemindaian tanpa izin adalah tindakan ilegal.
+Alat ini hanya dibuat oleh amatir. Tidak bermaksud merugikan siapapun
