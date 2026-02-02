@@ -16,7 +16,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class CPEGenerator:
-    """Generates CPE 2.3 strings from service detection data"""
+    """Generates CPE strings from service detection data"""
 
     STATIC_MAP = {
         "apache": {"vendor": "apache", "product": "http_server"},
@@ -36,24 +36,24 @@ class CPEGenerator:
     def __init__(self, nvd_client: Optional[Any] = None):
         self.nvd_client = nvd_client
 
-        # === RapidFuzz compatibility layer (v2 & v3+) ===
+       
         self.fuzzy_scorer = None
         if fuzz:
             if hasattr(fuzz, "partial_ratio"):
-                self.fuzzy_scorer = fuzz.partial_ratio   # RapidFuzz v3+
+                self.fuzzy_scorer = fuzz.partial_ratio   
             else:
-                self.fuzzy_scorer = fuzz.PARTIAL_RATIO   # RapidFuzz v2.x
+                self.fuzzy_scorer = fuzz.PARTIAL_RATIO   
 
     def generate(self, service_info: Dict[str, Any]) -> str:
         """
         Generate CPE from service information.
-        Now enhanced to consume fingerprinted data from Active Service Fingerprinting Engine.
+        Now   to consume fingerprinted data from Active Service Fingerprinting Engine.
         
         Priority:
         1. Use fingerprinted 'product' and 'version' fields (from service_fingerprinter.py)
         2. Fall back to banner parsing for legacy compatibility
         """
-        # Extract fingerprinted data (preferred)
+        
         product = service_info.get('product', '').lower()
         version = service_info.get('version', '*')
         service = service_info.get('service', '').lower()
@@ -61,13 +61,13 @@ class CPEGenerator:
 
         version = self._clean_version(version)
 
-        # If we have fingerprinted product data, use it directly
+        
         if product and product != 'unknown':
             cpe_base = self._match_static(product, banner)
             if cpe_base:
                 return self._build_cpe(cpe_base['vendor'], cpe_base['product'], version)
         
-        # Otherwise fall back to service/banner matching
+        
         cpe_base = self._match_static(service, banner)
         if cpe_base:
             return self._build_cpe(cpe_base['vendor'], cpe_base['product'], version)

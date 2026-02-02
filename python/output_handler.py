@@ -97,6 +97,9 @@ class OutputHandler:
         print(f"   Open Ports: {stats.get('open_ports', 0)}")
         print(f"   Services Detected: {stats.get('services_detected', 0)}")
         print(f"   Vulnerabilities Found: {stats.get('vulnerabilities_found', 0)}")
+        if 'confidence_distribution' in stats:
+            dist = stats['confidence_distribution']
+            print(f"     -> Confirmed: {dist.get('confirmed', 0)}, Potential: {dist.get('possible', 0)}, Informational: {dist.get('informational', 0)}")
         print(f"   Plugin Findings: {stats.get('plugin_findings', 0)}")
         
         # Open ports
@@ -116,16 +119,33 @@ class OutputHandler:
             if len(services) > 10:
                 print(f"   ... and {len(services) - 10} more")
         
-        # Vulnerabilities
+        # Vulnerabilities - Categorized
         vulnerabilities = report.get('vulnerabilities', [])
         if vulnerabilities:
-            print(f"\n[Warning] Vulnerabilities:")
-            for vuln in vulnerabilities[:5]:
-                severity_tag = self._get_severity_tag(vuln.get('severity'))
-                print(f"   {severity_tag} {vuln.get('cve_id')}: {vuln.get('description')}")
-                print(f"      Port {vuln.get('port')} - {vuln.get('service')} {vuln.get('version')}")
-            if len(vulnerabilities) > 5:
-                print(f"   ... and {len(vulnerabilities) - 5} more")
+            print(f"\n[Warning] Vulnerability Analysis:")
+            
+            # Group by relevance
+            confirmed = [v for v in vulnerabilities if v.get('relevance') == 'confirmed']
+            potential = [v for v in vulnerabilities if v.get('relevance') in ['likely', 'possible']]
+            informational = [v for v in vulnerabilities if v.get('relevance') == 'informational']
+            
+            if confirmed:
+                print(f"\n   ✅ CONFIRMED FINDINGS ({len(confirmed)}):")
+                for vuln in confirmed[:5]:
+                    print(f"      [!] {vuln.get('service')} {vuln.get('version')}: {vuln.get('explanation')}")
+            
+            if potential:
+                print(f"\n   [WARNING] POTENTIAL VULNERABILITIES ({len(potential)}):")
+                for vuln in potential[:5]:
+                    print(f"      [-] {vuln.get('service')} {vuln.get('version')}: {vuln.get('critical') + vuln.get('high')} high-risk correlations")
+            
+            if informational:
+                print(f"\n   ℹ️  THREAT INTELLIGENCE REFERENCES ({len(informational)}):")
+                for vuln in informational[:3]:
+                    print(f"      [?] {vuln.get('service')}: {vuln.get('total_cves')} keyword matches (Assumed Low Relevance)")
+                    print(f"          Reason: {vuln.get('explanation', 'Generic match')}")
+
+            print(f"\n   [Note] Results are correlation-based. No active exploit verification performed.")
         
         # Plugin findings
         plugin_findings = report.get('plugin_findings', [])

@@ -96,7 +96,7 @@ class NVDClient:
         Search CVEs by CPE name
         
         Args:
-            cpe_name: CPE 2.3 formatted string (e.g., "cpe:2.3:a:vendor:product:version:*:*:*:*:*:*:*")
+            cpe_name: CPE 2.3 formatted string (e.g., "cpe:2.3:a:vendor:product:version:*:*:*:*:*:*:*:*")
             max_results: Maximum number of results to return
             
         Returns:
@@ -162,52 +162,8 @@ class NVDClient:
             
             logger.info(f"[Success] Found {total_results} CVEs for {cpe_name}")
             
-            # Extract CVE information
-            cves = []
-            for vuln in vulnerabilities:
-                cve = vuln.get('cve', {})
-                cve_id = cve.get('id', 'Unknown')
-                
-                # Extract CVSS scores
-                metrics = cve.get('metrics', {})
-                cvss_v3 = None
-                cvss_v2 = None
-                severity = 'Unknown'
-                
-                # Try CVSS v3.1 first, then v3.0
-                if 'cvssMetricV31' in metrics and metrics['cvssMetricV31']:
-                    cvss_v3 = metrics['cvssMetricV31'][0]['cvssData']['baseScore']
-                    severity = metrics['cvssMetricV31'][0]['cvssData']['baseSeverity']
-                elif 'cvssMetricV30' in metrics and metrics['cvssMetricV30']:
-                    cvss_v3 = metrics['cvssMetricV30'][0]['cvssData']['baseScore']
-                    severity = metrics['cvssMetricV30'][0]['cvssData']['baseSeverity']
-                elif 'cvssMetricV2' in metrics and metrics['cvssMetricV2']:
-                    cvss_v2 = metrics['cvssMetricV2'][0]['cvssData']['baseScore']
-                    severity = self._cvss_v2_to_severity(cvss_v2)
-                
-                # Extract description
-                descriptions = cve.get('descriptions', [])
-                description = next(
-                    (d['value'] for d in descriptions if d.get('lang') == 'en'),
-                    'No description available'
-                )
-                
-                # Extract published and modified dates
-                published = cve.get('published', '')
-                modified = cve.get('lastModified', '')
-                
-                cves.append({
-                    'id': cve_id,
-                    'description': description,
-                    'cvss_v3': cvss_v3,
-                    'cvss_v2': cvss_v2,
-                    'severity': severity,
-                    'published': published,
-                    'modified': modified,
-                    'url': f"https://nvd.nist.gov/vuln/detail/{cve_id}"
-                })
-            
-            return cves
+            # Use same extraction logic as search_by_cpe
+            return self._extract_cves(data)
             
         except requests.exceptions.RequestException as e:
             logger.error(f"[Error] NVD API request failed: {e}")
@@ -260,7 +216,7 @@ class NVDClient:
             return self._extract_cves(data)
             
         except Exception as e:
-            logger.error(f"❌ Keyword search failed: {e}")
+            logger.error(f"  Keyword search failed: {e}")
             return []
     
     def get_cves_for_service(self, service_name: str, version: str = None) -> List[Dict]:
@@ -329,6 +285,63 @@ class NVDClient:
         
         return patterns
     
+    def _extract_cpes(self, data: Dict) -> List[Dict]:
+        """Extract CPE information from API response"""
+        cpe_matches = []
+        vulnerabilities = data.get('vulnerabilities', [])
+        
+        for vuln in vulnerabilities:
+            cve = vuln.get('cve', {})
+            cve_id = cve.get('id', 'Unknown')
+            
+            # Extract CPE data from configurations
+            cpe_data = self._extract_cpe_data(cve)
+            cpe_matches.extend(cpe_data)
+        
+        return cpe_matches
+
+    def _extract_cpe_data(self, cve: Dict) -> List[Dict]:
+        """Extract CPE version range data from CVE structure"""
+        cpe_data = []
+        configurations = cve.get('configurations', [])
+        
+        for config in configurations:
+            nodes = config.get('nodes', [])
+            for node in nodes:
+                cpe_matches = node.get('cpeMatch', [])
+                for cpe_match in cpe_matches:
+                    cpe_info = {
+                        'cpe23Uri': cpe_match.get('cpe23Uri', ''),
+                        'vulnerable': cpe_match.get('vulnerable', True),
+                        'versionStartIncluding': cpe_match.get('versionStartIncluding'),
+                        'versionEndIncluding': cpe_match.get('versionEndIncluding'),
+                        'versionStartExcluding': cpe_match.get('versionStartExcluding'),
+                        'versionEndExcluding': cpe_match.get('versionEndExcluding')
+                    }
+                    
+                    if cpe_info['cpe23Uri']:
+                        parsed = self._parse_cpe_uri(cpe_info['cpe23Uri'])
+                        cpe_info.update(parsed)
+                    
+                    cpe_data.append(cpe_info)
+        
+        return cpe_data
+    
+    def _parse_cpe_uri(self, cpe_uri: str) -> Dict:
+        """Parse CPE 2.3 URI to extract vendor, product, version"""
+        if not cpe_uri:
+            return {'vendor': '', 'product': '', 'version': ''}
+        
+        parts = cpe_uri.split(':')
+        if len(parts) < 6:
+            return {'vendor': '', 'product': '', 'version': ''}
+        
+        return {
+            'vendor': parts[3] if len(parts) > 3 else '',
+            'product': parts[4] if len(parts) > 4 else '',
+            'version': parts[5] if len(parts) > 5 else ''
+        }
+    
     def _extract_cves(self, data: Dict) -> List[Dict]:
         """Extract CVE information from API response"""
         cves = []
@@ -359,6 +372,9 @@ class NVDClient:
                 'No description available'
             )
             
+            # Extract CPE data for   version matching
+            cpe_data = self._extract_cpe_data(cve)
+            
             cves.append({
                 'id': cve_id,
                 'description': description,
@@ -367,7 +383,8 @@ class NVDClient:
                 'severity': severity,
                 'published': cve.get('published', ''),
                 'modified': cve.get('lastModified', ''),
-                'url': f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+                'url': f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                'cpe_data': cpe_data
             })
         
         return cves
@@ -407,7 +424,7 @@ if __name__ == "__main__":
             print(f"   {cve['description'][:150]}...")
             print(f"   URL: {cve['url']}")
     else:
-        print("❌ No CVEs found")
+        print("  No CVEs found")
     
     # Test 2: Search for OpenSSH vulnerabilities
     print("\n" + "="*60)
@@ -423,4 +440,4 @@ if __name__ == "__main__":
             print(f"   CVSS: {cve.get('cvss_v3') or cve.get('cvss_v2')}")
             print(f"   {cve['description'][:150]}...")
     else:
-        print("❌ No CVEs found")
+        print("  No CVEs found")

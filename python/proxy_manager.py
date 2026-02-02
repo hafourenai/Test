@@ -39,6 +39,9 @@ class ProxyManager:
         # Initialize Tor session for verification
         self.tor_session = TorSession() if TorSession else None
         
+        # Cache real IP for fail-safe checks
+        self.real_ip = self.get_public_ip(use_proxy=False)
+        
         # Load proxies from file
         if self.proxies_file.exists():
             self._load_proxies()
@@ -276,7 +279,16 @@ class ProxyManager:
                 )
             
             if response:
-                return response.json().get('origin', 'unknown')
+                current_ip = response.json().get('origin', 'unknown')
+                
+                # Fail-safe check: detect IP leaks
+                if use_proxy and (self.use_tor or self.proxies):
+                    if current_ip == self.real_ip and self.real_ip != 'unknown':
+                        logger.critical("🚨 PRIVACY LEAK DETECTED: Proxy/Tor is active but your real IP is visible!")
+                        logger.critical(f"   Real IP: {self.real_ip} | Visible IP: {current_ip}")
+                        raise SystemExit("Terminating scan to prevent identity exposure.")
+                
+                return current_ip
             return 'unknown'
         except Exception as e:
             logger.error(f"Error getting public IP: {e}")
@@ -284,7 +296,7 @@ class ProxyManager:
 
 
 class StealthScanner:
-    """Enhanced scanner with stealth capabilities"""
+    """  scanner with stealth capabilities"""
     
     def __init__(self, proxy_manager: ProxyManager):
         self.proxy_manager = proxy_manager

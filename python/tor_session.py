@@ -179,7 +179,7 @@ class TorSession:
                     logger.info(f"   Retrying (attempt {attempt + 2}/{self.max_retries})...")
                     time.sleep(1)
                 else:
-                    logger.error(f"❌ Max retries exceeded for {url}")
+                    logger.error(f"  Max retries exceeded for {url}")
                     return None
             
             except requests.exceptions.RequestException as e:
@@ -248,7 +248,7 @@ class TorSession:
             return None
             
         except Exception as e:
-            logger.error(f"❌ Could not get IP: {e}")
+            logger.error(f"  Could not get IP: {e}")
             return None
     
     def renew_identity(self) -> bool:
@@ -369,11 +369,11 @@ if __name__ == "__main__":
             print(f"📡 Exit IP: {ip}")
             
             # Test HTTP request
-            print("\n🧪 Testing HTTP request...")
+            print("\n  Testing HTTP request...")
             response = tor.get('https://httpbin.org/headers')
             if response:
                 print(f"  Request successful - Status: {response.status_code}")
         else:
-            print("\n❌ Tor is NOT working!")
+            print("\n  Tor is NOT working!")
             print("   Make sure Tor is running:")
             print("   sudo systemctl start tor")

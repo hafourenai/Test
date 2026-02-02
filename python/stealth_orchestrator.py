@@ -1,6 +1,6 @@
 # python/stealth_orchestrator.py
 """
-Enhanced Orchestrator with Stealth Capabilities
+  Orchestrator with Stealth Capabilities
 Extends base orchestrator with proxy rotation and Tor support
 """
 
@@ -170,7 +170,7 @@ class StealthOrchestrator:
             try:
                 scan_data = json.loads(result.stdout)
             except json.JSONDecodeError:
-                print(f"❌ Failed to parse JSON. Raw output:\n{result.stdout[:200]}...")
+                print(f"  Failed to parse JSON. Raw output:\n{result.stdout[:200]}...")
                 return {}
             
             # === ACTIVE SERVICE FINGERPRINTING ===
@@ -185,16 +185,16 @@ class StealthOrchestrator:
             return scan_data
             
         except FileNotFoundError as e:
-            print(f"❌ Dependency error: {e}")
+            print(f"  Dependency error: {e}")
             return {}
         except RuntimeError as e:
-            print(f"❌ {e}")
+            print(f"  {e}")
             return {}
         except subprocess.TimeoutExpired:
-            print("❌ Scanner timeout (5 minutes)")
+            print("  Scanner timeout (5 minutes)")
             return {}
         except Exception as e:
-            print(f"❌ Scanner error: {e}")
+            print(f"  Scanner error: {e}")
             return {}
     
     def _fingerprint_services(self, target: str, scan_data: Dict[str, Any]) -> List[Dict[str, Any]]:

@@ -1,6 +1,6 @@
 """
 Vulnerability Scanner - Love U N
-Enhanced with Proxy Rotation and Tor Integration
+  with Proxy Rotation and Tor Integration
 """
 
 import argparse
@@ -10,9 +10,6 @@ import logging
 import os
 from pathlib import Path
 from datetime import datetime
-
-# Add parent directory to path
-# sys.path.insert(0, str(Path(__file__).parent))
 
 def load_env(env_path: Path):
     """Simple .env loader to avoid extra dependencies"""
@@ -57,11 +54,11 @@ logger = logging.getLogger(__name__)
 def print_banner():
     """Display scanner banner"""
     banner = """
-╔═══════════════════════════════════════════════════╗
-║                  LOVE U N                         ║
-║   Python + Go + Tor + Proxy Rotation              ║
-║   Tor Support | Proxy Rotation                    ║
-╚═══════════════════════════════════════════════════╝
++===============================================+
+|                  LOVE U N                     |
+|   Python + Go + Tor + Proxy Rotation          |
+|   Tor Support | Proxy Rotation                |
++===============================================+
     """
     print(banner)
 
@@ -73,25 +70,22 @@ def print_disclaimer():
    • Only scan systems you own or have written permission to test
    • Unauthorized scanning may be illegal in your jurisdiction
    • Using proxies/Tor does not make illegal activity legal
-   • Proxy/Tor usage may be monitored or restricted
    • User assumes all responsibility for scanner usage
-   • This tool is for security research and education only
    
-🔒 PRIVACY NOTICE:
-   • Proxies may log your traffic
-   • Use trusted proxy providers only
-   • Tor provides anonymity but not legal immunity
-   • Your ISP may detect Tor usage
+🔒 PRIVACY & FIDELITY NOTICE:
+   • Results are CORRELATION-BASED, not EXPLOITATION-BASED.
+   • CVE presence does NOT imply exploitability in your specific environment.
+   • Proxies/Tor provide anonymity but not legal immunity.
     """
     print(disclaimer)
 
 
 def test_proxy_setup(proxy_manager: ProxyManager):
     """Test proxy configuration"""
-    print("\n🧪 Testing Proxy Setup...")
+    print("\n  Testing Proxy Setup...")
     
     if not proxy_manager:
-        print("   ❌ No proxy manager initialized")
+        print("     No proxy manager initialized")
         return
     
     # Test without proxy
@@ -156,9 +150,7 @@ def main():
 
 
 
-    # Scanner options
-
-
+# Scanner options
     parser.add_argument('-o', '--output', help='Output file (JSON)')
     parser.add_argument('--no-cve', action='store_true',
                        help='Skip CVE matching')
@@ -166,6 +158,8 @@ def main():
                        help='Skip plugin execution')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
+    parser.add_argument('--scoring', action='store_true',
+                       help='Enable CVE relevance scoring (Phase 1)')
     parser.add_argument('--accept-disclaimer', action='store_true',
                        help='Accept legal disclaimer')
     
@@ -173,7 +167,7 @@ def main():
     
     # Test proxies mode
     if args.test_proxies:
-        print("🧪 Proxy Test Mode")
+        print("  Proxy Test Mode")
         proxy_mgr = ProxyManager(
             proxies_file=args.proxies_file,
             use_tor=args.use_tor
@@ -224,7 +218,7 @@ def main():
     
     # Initialize CVE matcher with Tor support if enabled
     if NVD_AVAILABLE:
-        cve_matcher = CVEMatcher(nvd_api_key=nvd_key, use_tor=use_stealth_features)
+        cve_matcher = CVEMatcher(nvd_api_key=nvd_key, use_tor=use_stealth_features, scoring=args.scoring)
         if use_stealth_features:
             logger.info("[Tor] NVD API will use Tor network")
     else:
@@ -236,7 +230,7 @@ def main():
     
     # Validate target
     if not orchestrator.validate_target(args.target):
-        print(f"❌ Invalid target: {args.target}")
+        print(f"  Invalid target: {args.target}")
         sys.exit(1)
     
     # Execute scanner
@@ -286,25 +280,15 @@ def main():
         )
     
     if not scan_results:
-        print("❌ Scan failed or returned no results")
+        print("  Scan failed or returned no results")
         sys.exit(1)
     
     vulnerabilities = []
     if not args.no_cve and cve_matcher:
         print("\n[Scan] Correlating with Real-Time NVD Intelligence Engine...")
         
-        # Convert services to format expected by CVE matcher
-        service_list = []
-        for svc in scan_results.get('services', []):
-            service_list.append({
-                'name': svc.get('service', 'unknown'),
-                'version': svc.get('version'),
-                'port': svc.get('port'),
-                'product': svc.get('product')
-            })
-        
-        if service_list:
-            findings = cve_matcher.match_vulnerabilities(service_list)
+        if scan_results.get('services'):
+            findings = cve_matcher.match_vulnerabilities(scan_results['services'])
             
             if findings:
                 print(f"[Success] Found {sum(f['total_cves'] for f in findings)} potential vulnerabilities")
@@ -346,7 +330,7 @@ def main():
     # Compile final report
     final_report = {
         "metadata": {
-            "scanner_version": "2.0-stealth",
+            "scanner_version": "2.1-stealth",
             "timestamp": datetime.utcnow().isoformat(),
             "target": args.target,
             "stealth_mode": {
@@ -369,6 +353,11 @@ def main():
             "open_ports": len(scan_results.get('open_ports', [])),
             "services_detected": len(scan_results.get('services', [])),
             "vulnerabilities_found": len(vulnerabilities),
+            "confidence_distribution": {
+                "confirmed": len([v for v in vulnerabilities if v.get('relevance') == 'confirmed']),
+                "possible": len([v for v in vulnerabilities if v.get('relevance') == 'possible']),
+                "informational": len([v for v in vulnerabilities if v.get('relevance') == 'informational'])
+            },
             "plugin_findings": len(plugin_results)
         }
     }
