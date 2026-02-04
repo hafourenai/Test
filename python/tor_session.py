@@ -1,5 +1,5 @@
 """
-Tor Session - Professional Networking Layer
+Tor Session -   Networking Layer
 Forces all HTTP traffic through Tor SOCKS5 proxy to prevent leaks
 
 This is the ONLY HTTP client that should be used in the application.
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class TorSession:
     """
-    Professional Tor-enabled HTTP session with automatic retry and DNS leak prevention.
+      Tor-enabled HTTP session with automatic retry and DNS leak prevention.
     
     Architecture:
         HTTP Client Layer → TorSession (SOCKS5h) → Tor Network → Internet
@@ -42,7 +42,8 @@ class TorSession:
         tor_proxy: str = "socks5h://127.0.0.1:9050",
         timeout: int = 30,
         max_retries: int = 3,
-        verify_ssl: bool = False
+        verify_ssl: bool = False,
+        circuit_rotation_interval: int = 15  # Rotate every N requests
     ):
         """
         Initialize Tor session
@@ -52,18 +53,23 @@ class TorSession:
             timeout: Request timeout in seconds
             max_retries: Maximum retry attempts on failure
             verify_ssl: Whether to verify SSL certificates
+            circuit_rotation_interval: Rotate Tor circuit every N requests
         """
         self.tor_proxy = tor_proxy
         self.timeout = timeout
         self.max_retries = max_retries
         self.verify_ssl = verify_ssl
+        self.circuit_rotation_interval = circuit_rotation_interval
+        
+        # Request tracking
+        self.request_count = 0
+        self.last_ip = None
+        self.is_tor_verified = False
         
         # Create session with Tor proxy
         self.session = requests.Session()
         
-        # Configure proxies - CRITICAL: use socks5h:// not socks5://
-        # socks5h = hostname resolution through SOCKS proxy (prevents DNS leaks)
-        # socks5  = local DNS resolution (LEAKS DNS!)
+
         self.session.proxies = {
             'http': tor_proxy,
             'https': tor_proxy
@@ -96,6 +102,7 @@ class TorSession:
         logger.debug(f"   Proxy: {tor_proxy}")
         logger.debug(f"   Timeout: {timeout}s")
         logger.debug(f"   Max retries: {max_retries}")
+        logger.debug(f"   Circuit rotation: every {circuit_rotation_interval} requests")
     
     def get(self, url: str, **kwargs) -> Optional[requests.Response]:
         """
@@ -149,11 +156,24 @@ class TorSession:
         if 'User-Agent' not in kwargs['headers']:
             kwargs['headers']['User-Agent'] = self._get_random_user_agent()
         
+        # Auto-rotate circuit based on request count
+        if self.request_count > 0 and self.request_count % self.circuit_rotation_interval == 0:
+            logger.info(f"[Tor] Auto-rotating circuit after {self.request_count} requests")
+            self.renew_identity()
+        
         for attempt in range(self.max_retries):
             try:
                 logger.debug(f"[Net] {method} {url} (attempt {attempt + 1}/{self.max_retries})")
                 
                 response = self.session.request(method, url, **kwargs)
+                
+                # Increment request counter
+                self.request_count += 1
+                
+                # Periodic Tor verification (every 50 requests)
+                if self.request_count % 50 == 0:
+                    logger.info(f"[Tor] Periodic verification at {self.request_count} requests")
+                    self._verify_tor_connection_silent()
                 
                 # Log successful request
                 logger.debug(f"[Success] {method} {url} - Status: {response.status_code}")
@@ -263,12 +283,29 @@ class TorSession:
             from stem import Signal
             from stem.control import Controller
             
+            # Get current IP before renewal
+            old_ip = self.last_ip or self.get_current_ip()
+            
             with Controller.from_port(port=9051) as controller:
                 controller.authenticate()
                 controller.signal(Signal.NEWNYM)
-                logger.info("[Success] Tor identity renewed (new circuit)")
+                logger.info("[Tor] Requesting new circuit...")
                 time.sleep(5)  # Wait for new circuit
+            
+            # Verify IP changed
+            new_ip = self.get_current_ip()
+            
+            if new_ip and new_ip != old_ip:
+                logger.info(f"[Success] Tor identity renewed: {old_ip} -> {new_ip}")
+                self.last_ip = new_ip
                 return True
+            elif new_ip == old_ip:
+                logger.warning(f"[Tor] IP did not change after renewal (still {old_ip})")
+                logger.warning("[Tor] This may happen if requests are too frequent")
+                return False
+            else:
+                logger.warning("[Tor] Could not verify IP change")
+                return False
                 
         except ImportError:
             logger.warning("  stem library not installed")
@@ -278,6 +315,28 @@ class TorSession:
         except Exception as e:
             logger.warning(f"  Could not renew Tor identity: {e}")
             logger.info("   Make sure Tor control port is accessible")
+            return False
+    
+    def _verify_tor_connection_silent(self) -> bool:
+        """Silently verify Tor connection without logging (for periodic checks)"""
+        try:
+            response = self.get('https://check.torproject.org/api/ip', timeout=10)
+            
+            if response and response.status_code == 200:
+                data = response.json()
+                is_tor = data.get('IsTor', False)
+                ip = data.get('IP', 'unknown')
+                
+                if is_tor:
+                    self.last_ip = ip
+                    self.is_tor_verified = True
+                    return True
+                else:
+                    logger.error(f"[Error] NOT using Tor! Current IP: {ip}")
+                    self.is_tor_verified = False
+                    return False
+            return False
+        except:
             return False
     
     def get_proxy_socket(self, timeout: int = 10) -> Optional[socket.socket]:

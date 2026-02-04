@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 class ProxyManager:
     """Manages proxy rotation and Tor integration"""
     
-    def __init__(self, proxies_file: str = "proxies.txt", use_tor: bool = False):
+    def __init__(self, proxies_file: str = "proxies.txt", use_tor: bool = False, 
+                 strategy: str = 'weighted'):
         self.proxies_file = Path(proxies_file)
         self.use_tor = use_tor
         self.proxies = []
@@ -35,6 +36,11 @@ class ProxyManager:
         self.tor_process = None
         self.tor_port = 9050
         self.tor_control_port = int(os.getenv('TOR_CONTROL_PORT', 9051))
+        self.rotation_strategy = strategy
+        
+        # Proxy performance tracking
+        self.proxy_stats = {}  # {proxy_id: {total, successful, latencies, last_used}}
+        self.request_count = 0
         
         # Initialize Tor session for verification
         self.tor_session = TorSession() if TorSession else None
@@ -51,6 +57,8 @@ class ProxyManager:
         # Initialize Tor if enabled
         if self.use_tor:
             self._initialize_tor()
+        
+        logger.info(f"[Proxy] Strategy: {strategy}, Proxies: {len(self.proxies)}, Tor: {use_tor}")
     
     def _load_proxies(self):
         """Load proxies from proxies.txt"""
@@ -66,7 +74,19 @@ class ProxyManager:
                 # Parse proxy format: protocol://ip:port or ip:port
                 proxy = self._parse_proxy(line)
                 if proxy:
+                    proxy_id = self._get_proxy_id(proxy)
+                    proxy['id'] = proxy_id
                     self.proxies.append(proxy)
+                    # Initialize stats
+                    self.proxy_stats[proxy_id] = {
+                        'total_requests': 0,
+                        'successful_requests': 0,
+                        'failed_requests': 0,
+                        'latencies': [],
+                        'last_used': 0,
+                        'success_rate': 1.0,
+                        'avg_latency': 5.0
+                    }
             
             logger.info(f"  Loaded {len(self.proxies)} proxies from {self.proxies_file}")
             
@@ -105,7 +125,8 @@ class ProxyManager:
             
             return {
                 'http': proxy_url,
-                'https': proxy_url
+                'https': proxy_url,
+                'url': proxy_url
             }
         except Exception as e:
             logger.warning(f"Failed to parse proxy '{proxy_str}': {e}")
@@ -196,27 +217,167 @@ class ProxyManager:
         except Exception as e:
             logger.warning(f"Could not renew Tor identity: {e}")
     
-    def get_current_proxy(self, strategy: str = 'rotate') -> Optional[Dict[str, str]]:
+    def get_current_proxy(self, strategy: str = None) -> Optional[Dict[str, str]]:
         """
         Get proxy based on strategy
         
         Args:
-            strategy: 'rotate', 'random', 'tor', or 'tor-fallback'
+            strategy: 'rotate', 'random', 'weighted', 'tor', 'tor_fallback', 'tor_only'
         """
-        if strategy == 'tor' and self.use_tor:
-            return self.get_tor_proxy()
+        strategy = strategy or self.rotation_strategy
         
-        elif strategy == 'tor-fallback':
+        if strategy == 'tor' or strategy == 'tor_only':
+            if self.use_tor:
+                return self.get_tor_proxy()
+            else:
+                logger.warning("[Proxy] Tor requested but not enabled")
+                return self.get_next_proxy()
+        
+        elif strategy == 'tor_fallback':
             if self.use_tor and self._check_tor_running():
                 return self.get_tor_proxy()
             else:
-                return self.get_next_proxy()
+                return self._weighted_selection() if self.proxies else None
+        
+        elif strategy == 'weighted':
+            return self._weighted_selection()
         
         elif strategy == 'random':
             return self.get_random_proxy()
         
         else:  # rotate
             return self.get_next_proxy()
+    
+    def _get_proxy_id(self, proxy: Dict[str, str]) -> str:
+        """Generate unique ID for proxy"""
+        return proxy.get('url', proxy.get('http', 'unknown'))
+    
+    def _weighted_selection(self) -> Optional[Dict[str, str]]:
+        """
+        Select proxy based on performance metrics (success rate and latency)
+        Better performing proxies have higher probability of selection
+        """
+        if not self.proxies:
+            return None
+        
+        weights = []
+        for proxy in self.proxies:
+            proxy_id = proxy.get('id', self._get_proxy_id(proxy))
+            stats = self.proxy_stats.get(proxy_id, {})
+            
+            success_rate = stats.get('success_rate', 1.0)
+            avg_latency = stats.get('avg_latency', 5.0)
+            
+            # Calculate weight: higher success rate and lower latency = higher weight
+            # Avoid division by zero
+            weight = success_rate / (avg_latency + 0.1)
+            weights.append(max(0.01, weight))  # Minimum weight to give all proxies a chance
+        
+        # Weighted random selection
+        selected = random.choices(self.proxies, weights=weights, k=1)[0]
+        return selected
+    
+    def update_proxy_stats(self, proxy: Dict[str, str], success: bool, latency: float = 0):
+        """
+        Update proxy performance statistics
+        
+        Args:
+            proxy: Proxy dictionary
+            success: Whether the request was successful
+            latency: Request latency in seconds
+        """
+        proxy_id = proxy.get('id', self._get_proxy_id(proxy))
+        
+        if proxy_id not in self.proxy_stats:
+            self.proxy_stats[proxy_id] = {
+                'total_requests': 0,
+                'successful_requests': 0,
+                'failed_requests': 0,
+                'latencies': [],
+                'last_used': time.time(),
+                'success_rate': 1.0,
+                'avg_latency': 5.0
+            }
+        
+        stats = self.proxy_stats[proxy_id]
+        stats['total_requests'] += 1
+        stats['last_used'] = time.time()
+        
+        if success:
+            stats['successful_requests'] += 1
+            if latency > 0:
+                stats['latencies'].append(latency)
+                # Keep only last 100 latencies
+                if len(stats['latencies']) > 100:
+                    stats['latencies'] = stats['latencies'][-100:]
+        else:
+            stats['failed_requests'] += 1
+        
+        # Update metrics
+        stats['success_rate'] = stats['successful_requests'] / stats['total_requests']
+        if stats['latencies']:
+            stats['avg_latency'] = sum(stats['latencies']) / len(stats['latencies'])
+    
+    def remove_dead_proxies(self, min_success_rate: float = 0.3):
+        """
+        Remove proxies with low success rate
+        
+        Args:
+            min_success_rate: Minimum success rate to keep proxy (default: 0.3)
+        """
+        initial_count = len(self.proxies)
+        
+        # Filter proxies
+        self.proxies = [
+            proxy for proxy in self.proxies
+            if self.proxy_stats.get(
+                proxy.get('id', self._get_proxy_id(proxy)), {}
+            ).get('success_rate', 1.0) >= min_success_rate
+        ]
+        
+        removed = initial_count - len(self.proxies)
+        if removed > 0:
+            logger.info(f"[Proxy] Removed {removed} dead proxies (success rate < {min_success_rate})")
+            logger.info(f"[Proxy] Remaining proxies: {len(self.proxies)}")
+    
+    def get_proxy_stats_summary(self) -> Dict:
+        """Get summary of proxy performance"""
+        if not self.proxy_stats:
+            return {}
+        
+        total_requests = sum(s['total_requests'] for s in self.proxy_stats.values())
+        total_successful = sum(s['successful_requests'] for s in self.proxy_stats.values())
+        
+        return {
+            'total_proxies': len(self.proxies),
+            'total_requests': total_requests,
+            'total_successful': total_successful,
+            'overall_success_rate': total_successful / total_requests if total_requests > 0 else 0,
+            'best_proxy': self._get_best_proxy(),
+            'worst_proxy': self._get_worst_proxy()
+        }
+    
+    def _get_best_proxy(self) -> Optional[str]:
+        """Get best performing proxy ID"""
+        if not self.proxy_stats:
+            return None
+        
+        best = max(
+            self.proxy_stats.items(),
+            key=lambda x: x[1].get('success_rate', 0) if x[1].get('total_requests', 0) > 5 else 0
+        )
+        return best[0] if best[1].get('total_requests', 0) > 5 else None
+    
+    def _get_worst_proxy(self) -> Optional[str]:
+        """Get worst performing proxy ID"""
+        if not self.proxy_stats:
+            return None
+        
+        worst = min(
+            self.proxy_stats.items(),
+            key=lambda x: x[1].get('success_rate', 1.0) if x[1].get('total_requests', 0) > 5 else 1.0
+        )
+        return worst[0] if worst[1].get('total_requests', 0) > 5 else None
     
     def test_proxy(self, proxy: Dict[str, str], timeout: int = 10) -> bool:
         """Test if proxy is working"""

@@ -13,17 +13,20 @@ import json
 import requests
 from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+# Add python directory to path
 try:
-    from python.tor_session import TorSession
-    from python.config import NVD_API_KEY, TOR_SOCKS_PROXY
+    from tor_session import TorSession
+    from config import NVD_API_KEY, TOR_SOCKS_PROXY
     TOR_AVAILABLE = True
 except ImportError:
-    TOR_AVAILABLE = False
-    TorSession = None  # Define TorSession to avoid NameError
-    import requests
+    try:
+        from python.tor_session import TorSession
+        from python.config import NVD_API_KEY, TOR_SOCKS_PROXY
+        TOR_AVAILABLE = True
+    except ImportError:
+        TOR_AVAILABLE = False
+        TorSession = None
+        import requests
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +222,7 @@ class NVDClient:
             logger.error(f"  Keyword search failed: {e}")
             return []
     
-    def get_cves_for_service(self, service_name: str, version: str = None) -> List[Dict]:
+    def get_cves_for_service(self, service_name: str, version: Optional[str] = None) -> List[Dict]:
         """
         Get CVEs for a service, trying multiple strategies
         

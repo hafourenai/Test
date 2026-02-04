@@ -1,11 +1,27 @@
 """
-CVE Matcher - Matches detected services with known vulnerabilities
-Matches detected services with known vulnerabilities
+CVE Matcher - Enhanced with Confidence Scoring Engine
+Matches detected services with known vulnerabilities using  
+confidence scoring and risk assessment.
+
+Phase 1 Enhancement: Integrated confidence scoring for verified findings.
 """
 
 import logging
 from typing import List, Dict, Optional
 from .nvd_client import NVDClient
+
+# Robust import for Confidence Engine
+try:
+    from confidence_engine import ConfidenceEngine, ConfidenceLevel, RiskLevel
+except ImportError:
+    try:
+        from ...confidence_engine import ConfidenceEngine, ConfidenceLevel, RiskLevel
+    except (ImportError, ValueError):
+        import sys
+        import os
+        # Add the 'python' directory to sys.path
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+        from confidence_engine import ConfidenceEngine, ConfidenceLevel, RiskLevel
 
 logger = logging.getLogger(__name__)
 
@@ -13,17 +29,49 @@ logger = logging.getLogger(__name__)
 class CVEMatcher:
     """Matches services with CVEs from NVD with   relevance filtering"""
     
-    def __init__(self, nvd_api_key: Optional[str] = None, use_tor: bool = False, scoring: bool = False):
+    def __init__(self, nvd_api_key: Optional[str] = None, use_tor: bool = False, scoring: bool = True, verification: bool = False):
         """
-        Initialize CVE Matcher
+        Initialize Enhanced CVE Matcher with confidence scoring
         
         Args:
             nvd_api_key: Optional NVD API key for better rate limits
             use_tor: Whether to route NVD API traffic through Tor
+            scoring: Enable confidence scoring (default: True for Phase 1)
+            verification: Enable safe vulnerability verification (default: False for Phase 2)
         """
         self.nvd_client = NVDClient(api_key=nvd_api_key, use_tor=use_tor)
         self.scoring = scoring
+        self.verification = verification
         self._cve_cache = {} # Performance Guard: Cache results per scan session
+        
+        # Initialize confidence engine for   scoring
+        if self.scoring:
+            self.confidence_engine = ConfidenceEngine()
+            logger.info("[CONF] Confidence scoring engine enabled for CVE matching")
+        else:
+            self.confidence_engine = None
+            logger.info("[CONF] Using legacy correlation-based scoring")
+        
+        # Initialize verification integration for Phase 2
+        if self.verification:
+            try:
+                from ...verification_integration import VulnerabilityVerifier
+                self.verifier = VulnerabilityVerifier(use_tor=use_tor, enable_verification=True)
+                logger.info("[VERIFY] Vulnerability verification integration enabled")
+            except ImportError:
+                try:
+                    from verification_integration import VulnerabilityVerifier
+                    self.verifier = VulnerabilityVerifier(use_tor=use_tor, enable_verification=True)
+                    logger.info("[VERIFY] Vulnerability verification integration enabled")
+                except ImportError:
+                    self.verifier = None
+                    logger.warning("[VERIFY] Could not import verification integration, falling back to correlation-only")
+        else:
+            self.verifier = None
+            if self.scoring:
+                logger.info("[VERIFY] Verification disabled - using correlation-based scoring only")
+            else:
+                logger.info("[VERIFY] Verification disabled - using legacy correlation scoring")
         
         #   vendor alias mapping for exact matches
         self.vendor_alias_map = {
@@ -86,6 +134,16 @@ class CVEMatcher:
         service_count = len(services)
         logger.info(f"[Search] Matching {service_count} services against NVD database...")
         
+        # Log verification status - FIXED for consistency
+        if self.verification and self.verifier:
+            logger.info("[VERIFY] Safe verification enabled - will attempt evidence-based verification")
+        elif self.verification:
+            logger.warning("[VERIFY] Verification flag set but verifier not available - falling back to correlation")
+        elif self.scoring:
+            logger.info("[SEARCH] Using correlation-based scoring with confidence engine (Phase 1)")
+        else:
+            logger.info("[SEARCH] Using legacy correlation-based scoring (verification disabled)")
+        
         for service in services:
             banner = service.get("banner", "")
             products = self._parse_products_from_banner(banner)
@@ -124,37 +182,151 @@ class CVEMatcher:
                     cves = self._cve_cache[keyword]
                 else:
                     logger.info(f"Searching CVEs for: {keyword}")
-                    cves = self.nvd_client.get_cves_for_service(p_product, p_version if p_version != 'unknown' else None)
+                    # Fix: Pass None for unknown version, empty string for None
+                    version_param = p_version if p_version and p_version != 'unknown' else None
+                    cves = self.nvd_client.get_cves_for_service(p_product, version_param)
                     self._cve_cache[keyword] = cves
 
                 # Process CVEs for this product
                 svc_findings_cves = []
                 
                 for cve in cves:
-                    score, analysis = self._score_relevance_v2(cve, prod)
+                    # Phase 1 Enhancement: Use confidence scoring if enabled
+                    if self.confidence_engine:
+                        #   confidence scoring
+                        confidence_result = self.confidence_engine.calculate_cve_confidence(prod, cve)
+                        
+                        # Calculate contextual risk
+                        context = {
+                            'exposure': 'internet',  # Default context
+                            'authentication': False,
+                            'port': service.get('port', 0)
+                        }
+                        risk_result = self.confidence_engine.calculate_risk_assessment(
+                            cve, confidence_result.score, context
+                        )
+                        
+                        # Enhanced analysis with confidence scoring
+                        analysis = {
+                            "confidence_score": confidence_result.score,
+                            "confidence_level": confidence_result.level.value,
+                            "risk_score": risk_result.score,
+                            "risk_level": risk_result.level.value,
+                            "signals": confidence_result.signals,
+                            "evidence": confidence_result.evidence,
+                            "explanation": confidence_result.explanation,
+                            "risk_explanation": risk_result.explanation
+                        }
+                        
+                        # Updated severity classification based on confidence and risk
+                        # Updated severity classification based on confidence and risk
+                        if confidence_result.score >= 0.8 and risk_result.score >= 0.7:
+                            severity = "HIGH_CONFIDENCE"
+                        elif confidence_result.score >= 0.6 and risk_result.score >= 0.5:
+                            severity = "MEDIUM_CONFIDENCE"
+                        elif confidence_result.score >= 0.4:
+                            severity = "POTENTIAL"
+                        else:
+                            severity = "INFORMATIONAL"
+                            
+                        score = int(confidence_result.score * 100)  # Convert to 0-100 scale
+                        
+                    else:
+                        # Legacy scoring for backward compatibility
+                        score, analysis = self._score_relevance_v2(cve, prod)
+                        severity = "INFORMATIONAL"
+                        if score >= 80:
+                            severity = "HIGH"
+                        elif score >= 60:
+                            severity = "MEDIUM"
 
                     # Performance: Store evidence in analysis for output validation (4B)
-                    analysis["evidence"] = f"vendor:{prod.get('vendor','')} product:{prod.get('product','')} version:{prod.get('version','')}"
+                    if "evidence" not in analysis:
+                        analysis["evidence"] = f"vendor:{prod.get('vendor','')} product:{prod.get('product','')} version:{prod.get('version','')}"
 
-                    # 5B: Defensive Classification
-                    severity = "INFORMATIONAL"
-                    if score >= 80:
-                        severity = "HIGH"
-                    elif score >= 60:
-                        severity = "MEDIUM"
+                        # Create base CVE finding
+                        cve_finding = {
+                            "id": cve["id"],
+                            "score": score,
+                            "severity_class": severity, 
+                            "product": prod["product"],
+                            "version": prod["version"],
+                            "enhanced_analysis": analysis,
+                            "description": cve.get("description", ""),
+                            "severity": cve.get("severity", "UNKNOWN"),
+                            "url": cve.get("url", ""),
+                            "cvss_v3": cve.get("cvss_v3", ""),
+                            "verified": (confidence_result.score >= 0.7) if self.confidence_engine else (score >= 70)
+                        }
                         
-                    svc_findings_cves.append({
-                        "id": cve["id"],
-                        "score": score,
-                        "severity_class": severity, 
-                        "product": prod["product"],
-                        "version": prod["version"],
-                        "enhanced_analysis": analysis,
-                        "description": cve.get("description", ""),
-                        "severity": cve.get("severity", "UNKNOWN"),
-                        "url": cve.get("url", ""),
-                        "cvss_v3": cve.get("cvss_v3", "")
-                    })
+                        # Apply verification if enabled
+                        if self.verifier and self.verification:
+                            try:
+                                # Create target info for verification
+                                target_info = {
+                                    'host': service.get('target', 'unknown'),
+                                    'port': service.get('port', 0),
+                                    'service': service.get('service', prod['product']),
+                                    'product': prod['product'],
+                                    'version': prod['version'],
+                                    'banner': service.get('banner', '')
+                                }
+                                
+                                # Perform verification
+                                logger.info(f"[VERIFY] {cve['id']} verification started")
+                                verified_findings = self.verifier.verify_cve_findings([cve_finding], target_info)
+                                
+                                if verified_findings:
+                                    enhanced_finding = verified_findings[0]
+                                    
+                                    # Log verification result
+                                    verification_status = enhanced_finding.get('verification_status', 'UNVERIFIED')
+                                    evidence_count = enhanced_finding.get('evidence_count', 0)
+                                    verification_method = enhanced_finding.get('verification_method', 'unknown')
+                                    
+                                    logger.info(f"[VERIFY] Evidence detected: {evidence_count} items found" if evidence_count > 0 else "[VERIFY] No evidence detected")
+                                    logger.info(f"[VERIFY] Status: {verification_status}")
+                                    
+                                    # Update confidence based on verification
+                                    if enhanced_finding.get('verification_status') == 'VERIFIED':
+                                        # Apply verification weighting: 40% correlation + 60% verification
+                                        original_score = cve_finding.get('score', 0)
+                                        verification_score = enhanced_finding.get('verification_confidence', 0) * 100  # Convert to 0-100 scale
+                                        combined_score = int(original_score * 0.4 + verification_score * 0.6)
+                                        
+                                        cve_finding['score'] = combined_score
+                                        cve_finding['verified'] = True
+                                        cve_finding['verification_status'] = 'VERIFIED'
+                                        cve_finding['verification_method'] = verification_method
+                                        cve_finding['evidence_count'] = evidence_count
+                                        cve_finding['verification_confidence'] = enhanced_finding.get('verification_confidence', 0)
+                                        
+                                        # Update severity class based on verification
+                                        if combined_score >= 90:
+                                            cve_finding['severity_class'] = 'HIGH_CONFIDENCE'
+                                        elif combined_score >= 70:
+                                            cve_finding['severity_class'] = 'MEDIUM_CONFIDENCE'
+                                        else:
+                                            cve_finding['severity_class'] = 'LOW_CONFIDENCE'
+                                            
+                                        logger.info(f"[CONF] Confidence recalculated using verification data: {combined_score}")
+                                    else:
+                                        # Keep original correlation-based score if not verified
+                                        cve_finding['verification_status'] = verification_status
+                                        cve_finding['evidence_count'] = evidence_count
+                                        
+                                    # Add evidence details if available
+                                    if enhanced_finding.get('evidence'):
+                                        cve_finding['evidence_details'] = enhanced_finding['evidence']
+                                else:
+                                    cve_finding['verification_status'] = 'ERROR'
+                                        
+                            except Exception as e:
+                                logger.error(f"[VERIFY] Verification failed for {cve['id']}: {e}")
+                                # Keep original finding if verification fails
+                                pass
+                        
+                        svc_findings_cves.append(cve_finding)
                 
                 if svc_findings_cves:
                     # Sort findings by score for this product entry
@@ -176,7 +348,7 @@ class CVEMatcher:
                             [c for c in svc_findings_cves if c['severity_class'] == 'MEDIUM'],
                             [c for c in svc_findings_cves if c['severity'] == 'LOW']
                         ),
-                        'relevance': 'confirmed' if any(c['score'] >= 80 for c in svc_findings_cves) else 'possible',
+                        'relevance': self._determine_relevance(svc_findings_cves),
                         'explanation': f"Found {len(svc_findings_cves)} CVEs via {keyword}"
                     }
                     findings.append(finding)
@@ -214,8 +386,8 @@ class CVEMatcher:
         report += "="*70 + "\n"
         
         # Sort by severity
-        severity_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
-        findings.sort(key=lambda x: severity_order.get(x['severity'], 99))
+        severity_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3, 'POTENTIAL': 4, 'INFORMATIONAL': 5}
+        findings.sort(key=lambda x: severity_order.get(x.get('severity', 'INFORMATIONAL'), 99))
         
         for finding in findings:
             service = finding['service']
@@ -227,7 +399,7 @@ class CVEMatcher:
 # Service header
             report += f"\n  {service.upper()} {version or 'unknown'} (Port {port})\n"
             report += f"   Overall Severity: {self._severity_emoji(severity)} {severity}\n"
-            report += f"   Relevance: {finding.get('relevance', 'possible').upper()}\n" # Additive
+            report += f"   Relevance: {finding.get('relevance', 'informational').upper()}\n" # Additive
             report += f"   Analysis: {finding.get('explanation', 'N/A')}\n"            # Additive
             report += f"   Total CVEs: {total}\n"
             
@@ -260,6 +432,20 @@ class CVEMatcher:
                 report += f"\n   {i}. {cve['id']} - {cve['severity']}\n"
                 report += f"      CVSS: {cvss}\n"
                 report += f"      {cve['description'][:120]}...\n"
+                
+                # Add verification status if available
+                if cve.get('verification_status'):
+                    verification_status = cve['verification_status']
+                    verification_method = cve.get('verification_method', 'unknown')
+                    evidence_count = cve.get('evidence_count', 0)
+                    
+                    if verification_status == 'VERIFIED':
+                        report += f"      ✓ VERIFIED - Method: {verification_method}\n"
+                        if evidence_count > 0:
+                            report += f"      Evidence Count: {evidence_count}\n"
+                    else:
+                        report += f"      Status: {verification_status}\n"
+                        
                 report += f"        {cve['url']}\n"
             
             report += "\n" + "-"*70 + "\n"
@@ -438,7 +624,42 @@ class CVEMatcher:
         
         return False
     
+    def _determine_relevance(self, cve_findings: List[Dict]) -> str:
+        """
+        Determine overall relevance based on confidence scores
+        
+        Args:
+            cve_findings: List of CVE findings with confidence/risk scores
+            
+        Returns:
+            Relevance string using academic-safe terminology
+        """
+        if not cve_findings:
+            return "informational"
+        
+        # Check for high confidence findings
+        high_confidence_count = sum(1 for c in cve_findings 
+                                  if c.get('enhanced_analysis', {}).get('confidence_level') == 'HIGH_CONFIDENCE')
+        
+        if high_confidence_count > 0:
+            return "high_confidence"
+        
+        # Check for medium confidence
+        medium_confidence_count = sum(1 for c in cve_findings 
+                                    if c.get('enhanced_analysis', {}).get('confidence_level') == 'MEDIUM_CONFIDENCE')
+        
+        if medium_confidence_count > 0:
+            return "medium_confidence"
+        
+        # Check for verified findings
+        verified_count = sum(1 for c in cve_findings if c.get('verified', False))
+        if verified_count > 0:
+            return "low_confidence"
+        
+        return "informational"
+    
     def _score_relevance_v2(self, cve, product):
+        """Legacy scoring for backward compatibility"""
         score = 0
         analysis = {}
 

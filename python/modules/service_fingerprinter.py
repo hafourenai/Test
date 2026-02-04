@@ -17,12 +17,13 @@ import logging
 import time
 from typing import Dict, Any, Optional
 
+import requests
 try:
     from tor_session import TorSession
     TOR_AVAILABLE = True
 except ImportError:
     TOR_AVAILABLE = False
-    import requests
+    TorSession = None
 
 logger = logging.getLogger(__name__)
 
@@ -122,10 +123,9 @@ class ServiceFingerprinter:
         Returns:
             Service fingerprint dictionary
         """
-        if not TOR_AVAILABLE: # requests is imported in the except block for TorSession
-            import requests
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        # Disable insecure request warnings
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         scheme = "https" if is_ssl or port in (443, 8443) else "http"
         url = f"{scheme}://{host}:{port}"
