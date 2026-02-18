@@ -4,18 +4,17 @@ Vulnerability Scanner - Love U N
 """
 
 import argparse
-import json
 import sys
 import logging
-import os
 import asyncio
 from pathlib import Path
-from datetime import datetime
 
 try:
-    from .simple_ _scanner import CustomPayloadScanner
+    from .unified_scanner import UnifiedScanner
+    from .config import NVD_API_KEY
 except ImportError:
-    from simple_ _scanner import CustomPayloadScanner
+    from unified_scanner import UnifiedScanner
+    from config import NVD_API_KEY
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,8 +27,8 @@ def print_banner():
     banner = """
 +===============================================+
 |                  LOVE U N                     |
-|   High-Speed Vulnerability Scanner          |
-|   Custom Payloads • High-Accuracy          |
+|   High-Speed Vulnerability Scanner            |
+|   Custom Payloads • High-Accuracy             |
 +===============================================+
     """
     print(banner)
@@ -69,6 +68,14 @@ def main():
     parser.add_argument('-s', '--sqli-file', help='SQL injection payloads file')
     parser.add_argument('-l', '--lfi-file', help='LFI payloads file')
     
+    # Scanning options
+    parser.add_argument('--stealth', default='ninja',
+                       help='Stealth level (ghost, ninja, balanced, fast)')
+    parser.add_argument('--tor', action='store_true',
+                       help='Route traffic through Tor')
+    parser.add_argument('--proxies', action='store_true',
+                       help='Enable proxy rotation')
+    
     # Other options
     parser.add_argument('--accept-disclaimer', action='store_true',
                        help='Accept legal disclaimer')
@@ -85,42 +92,58 @@ def main():
             print("Disclaimer not accepted. Exiting.")
             sys.exit(1)
     
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
     print(f"\n[+] Starting   Vulnerability Scan")
     print(f"[+] Target: {args.target}")
     print(f"[+] Workers: {args.workers} | Timeout: {args.timeout}s")
+    print(f"[+] Stealth: {args.stealth}")
     
-    # Load custom payloads
-    scanner = CustomPayloadScanner()
-    
-    if args.xss_file and Path(args.xss_file).exists():
-        scanner.load_payloads_from_file(args.xss_file)
-    
-    if args.sqli_file and Path(args.sqli_file).exists():
-        scanner.load_payloads_from_file(args.sqli_file)
-    
-    if args.lfi_file and Path(args.lfi_file).exists():
-        scanner.load_payloads_from_file(args.lfi_file)
-    
-    # Execute scanner
-    results = asyncio.run(
-        scanner.run_scan(
-            target=args.target,
-            output_file=args.output,
-            max_workers=args.workers,
-            timeout=args.timeout,
-            xss_file=args.xss_file,
-            sqli_file=args.sqli_file,
-            lfi_file=args.lfi_file
-        )
+    # Initialize UnifiedScanner
+    scanner = UnifiedScanner(
+        stealth_level=args.stealth,
+        use_tor=args.tor,
+        use_proxies=args.proxies,
+        nvd_api_key=NVD_API_KEY,
+        enable_cve_matching=True
     )
     
+    # Load custom payloads if provided
+    if args.xss_file and Path(args.xss_file).exists():
+        scanner.payload_manager.load_payloads('xss', args.xss_file)
+    
+    if args.sqli_file and Path(args.sqli_file).exists():
+        scanner.payload_manager.load_payloads('sqli', args.sqli_file)
+    
+    if args.lfi_file and Path(args.lfi_file).exists():
+        scanner.payload_manager.load_payloads('lfi', args.lfi_file)
+    
+    # Execute scan
+    results = asyncio.run(scanner.scan_target(target=args.target))
+    
     if results:
-        print(scanner.format_results(results))
+        # Display summary
+        stats = results.get('statistics', {})
+        total_vulns = stats.get('vulnerabilities_found', 0)
         
-        stats = results['statistics']
-        if stats['critical'] > 0 or stats['high'] > 0:
+        print(f"\n[+] Scan Complete")
+        print(f"[+] Duration: {stats.get('duration', 0):.2f}s")
+        print(f"[+] Vulnerabilities Found: {total_vulns}")
+        
+        # Determine exit code based on severity
+        cve_findings = results.get('cve_findings', [])
+        dast_findings = results.get('dast_findings', [])
+        
+        has_critical = any(
+            f.get('confidence') == 'High' for f in dast_findings
+        ) or any(
+            f.get('severity', '').lower() == 'critical' for f in cve_findings
+        )
+        
+        if has_critical:
             sys.exit(2)
-        elif stats['total_vulnerabilities'] > 0:
+        elif total_vulns > 0:
             sys.exit(1)
         else:
             sys.exit(0)

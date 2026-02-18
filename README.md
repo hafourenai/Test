@@ -66,9 +66,6 @@ Anda dapat menambah atau memperbarui payload dengan sangat mudah:
 ---
 
 
-
----
-
 ## TROUBLESHOOTING & TIPS
 - **High Failed Requests?** Target memiliki WAF kuat. Gunakan `--stealth ninja` atau `--stealth ghost`.
 - **0 Vulnerabilities?** Cek bagian **Potential Issues** di akhir laporan untuk analisa korelasi versi.
