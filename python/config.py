@@ -28,18 +28,17 @@ def load_env(env_path: Optional[Path] = None):
                     os.environ[key.strip()] = value.strip()
 
 
-# Load environment on import
 load_env()
 
 NVD_API_KEY = os.getenv('NVD_API_KEY', None)
 NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 # Rate Limiting
-NVD_RATE_LIMIT_WITH_KEY = 50      # requests per 30 seconds with API key
-NVD_RATE_LIMIT_WITHOUT_KEY = 5    # requests per 30 seconds without API key
+NVD_RATE_LIMIT_WITH_KEY = 50      
+NVD_RATE_LIMIT_WITHOUT_KEY = 5    
 
-# Request Configuration
-NVD_REQUEST_TIMEOUT = 30          # seconds
+
+NVD_REQUEST_TIMEOUT = 30         
 NVD_MAX_RESULTS_PER_PAGE = 2000  
 
 
@@ -58,7 +57,7 @@ CACHE_EXPIRY_HOURS = 24
 
 
 
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')  
 
 
 
@@ -99,7 +98,7 @@ CVSS_V2_MEDIUM = 4.0
 
 
 
-DEFAULT_EXPORT_FORMAT = 'json'  # json, csv, html
+DEFAULT_EXPORT_FORMAT = 'json'  
 EXPORT_DIR = Path('./reports')
 
 
@@ -107,16 +106,13 @@ EXPORT_DIR = Path('./reports')
 USER_AGENT = 'VulnerabilityScanner/2.0 (Educational Purpose; +https://github.com/hafourenai)'
 
 
-# ============================================================================
-# DISCOVERY & CRAWLING CONFIGURATION
-# ============================================================================
 DEFAULT_MAX_DEPTH = 3
 DEFAULT_MAX_PAGES = 50
 DEFAULT_PORTS = [
     21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 
     1723, 3306, 3389, 5432, 5900, 6379, 8000, 8080, 8443, 9000
 ]
-# Common paths for brute-force discovery
+
 CORE_DISCOVERY_PATHS = [
     '/robots.txt', '/sitemap.xml', '/.git/', '/.env', '/config.php', 
     '/admin/', '/login.php', '/wp-admin/', '/phpinfo.php', '/backup/',
@@ -124,20 +120,17 @@ CORE_DISCOVERY_PATHS = [
 ]
 
 
-# ============================================================================
-# STEALTH MODE CONFIGURATION
-# ============================================================================
 
-# Stealth Mode Levels - From Ghost (most stealth) to   (fastest)
+
 STEALTH_LEVELS = {
     'ghost': {
         'workers': 5,
         'delay_min': 5.0,
         'delay_max': 15.0,
         'batch_size': 1,
-        'rate_limit': 1,  # requests per second
-        'rotate_proxy_every': 3,  # requests
-        'rotate_identity_every': 10,  # requests (Tor circuit)
+        'rate_limit': 1, 
+        'rotate_proxy_every': 3, 
+        'rotate_identity_every': 10, 
         'request_timeout': 30,
         'description': 'Maximum stealth - slowest but undetectable'
     },
@@ -187,26 +180,19 @@ STEALTH_LEVELS = {
     }
 }
 
-# Default stealth level
 DEFAULT_STEALTH_LEVEL = 'ninja'
 
-
-# ============================================================================
-# WAF/IDS DETECTION SIGNATURES
-# ============================================================================
-
-# Known WAF signatures to detect in responses
 WAF_SIGNATURES = {
     'headers': [
-        'cf-ray',           # Cloudflare
-        'x-sucuri-id',      # Sucuri
-        'x-akamai',         # Akamai
-        'x-cdn',            # Generic CDN
+        'cf-ray',           
+        'x-sucuri-id',      
+        'x-akamai',         
+        'x-cdn',            
         'server: cloudflare',
         'server: incapsula',
-        'x-iinfo',          # Incapsula
-        'x-protected-by',   # Generic protection
-        'x-fw-',            # Firewall headers
+        'x-iinfo',          
+        'x-protected-by',
+        'x-fw-',            
     ],
     'content': [
         'cloudflare',
@@ -223,40 +209,29 @@ WAF_SIGNATURES = {
         'security check',
         'captcha',
     ],
-    'status_codes': [403, 406, 429, 503]  # Common WAF response codes
+    'status_codes': [403, 406, 429, 503]  
 }
 
-
-# ============================================================================
-# PAYLOAD ENCODING CONFIGURATION
-# ============================================================================
-
-# Payload encoding options for WAF bypass
 PAYLOAD_ENCODING = {
-    'url_encode': True,         # Standard URL encoding
-    'double_encode': True,      # Double URL encoding
-    'unicode_encode': True,     # Unicode escape sequences
-    'base64_encode': False,     # Base64 encoding (limited use)
-    'hex_encode': True,         # Hex encoding (SQL contexts)
-    'mixed_case': True,         # Case variation
-    'comment_injection': True,  # SQL comment injection
-    'null_byte': False,         # Null byte injection (risky)
+    'url_encode': True,         
+    'double_encode': True,      
+    'unicode_encode': True,     
+    'base64_encode': False,     
+    'hex_encode': True,         
+    'mixed_case': True,         
+    'comment_injection': True,  
+    'null_byte': False,         
 }
 
-# Payload mutation strategies
 PAYLOAD_MUTATIONS = {
-    'case_variation': True,     # Upper/lower/mixed case
-    'space_variation': True,    # Different space representations
-    'encoding_variation': True, # Multiple encoding types
-    'comment_variation': True,  # Different comment styles
+    'case_variation': True,     
+    'space_variation': True,    
+    'encoding_variation': True, 
+    'comment_variation': True,  
 }
 
 
-# ============================================================================
-# PROXY ROTATION CONFIGURATION
-# ============================================================================
 
-# Proxy rotation strategies
 PROXY_STRATEGIES = {
     'round_robin': 'Rotate proxies in sequential order',
     'random': 'Select random proxy for each request',
@@ -269,22 +244,16 @@ PROXY_STRATEGIES = {
 # Default proxy strategy
 DEFAULT_PROXY_STRATEGY = 'weighted'
 
-# Proxy health check settings
 PROXY_HEALTH_CHECK = {
     'enabled': True,
-    'interval': 300,            # Check every 5 minutes
-    'timeout': 10,              # Health check timeout
+    'interval': 300,            
+    'timeout': 10,              
     'test_url': 'https://httpbin.org/ip',
-    'min_success_rate': 0.5,    # Minimum 50% success rate
-    'max_latency': 10.0,        # Maximum 10s average latency
+    'min_success_rate': 0.5,    
+    'max_latency': 10.0,        
 }
 
 
-# ============================================================================
-# ADVANCED REQUEST FINGERPRINTING
-# ============================================================================
-
-# User-Agent pool for rotation
 USER_AGENTS = [
     # Chrome on Windows
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

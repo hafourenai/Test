@@ -38,10 +38,10 @@ class ConfidenceEngine:
     
     def calculate_cve_confidence(self, product_info, cve_data):
         """Calculate confidence in a CVE match"""
-        # Basic scoring logic
+       
         score = 0.5
         
-        # 1. Product & Version matching
+        
         if product_info.get('version') and product_info['version'] != 'unknown':
             if product_info['version'] in str(cve_data):
                 score = 0.9
@@ -50,7 +50,6 @@ class ConfidenceEngine:
                 score = 0.6
                 level = ConfidenceLevel.MEDIUM_CONFIDENCE
         else:
-            # Even without version, it's a potential match if product matches
             score = 0.4
             level = ConfidenceLevel.POTENTIAL
             
@@ -64,7 +63,6 @@ class ConfidenceEngine:
         
     def calculate_risk_assessment(self, cve_data, confidence_score, context=None):
         """Calculate risk level based on CVE and confidence"""
-        # Simplistic risk scoring
         cvss = cve_data.get('cvss_v3', 0)
         if not cvss:
             cvss = 5.0

@@ -49,7 +49,6 @@ class ServiceFingerprinter:
             else:
                 logger.warning("[!] Tor requested for fingerprinting but modules not loaded")
     
-    # Protocol-specific patterns for banner parsing
     BANNER_PATTERNS = {
         "apache": r"apache/?([\\d\\.]+)?",
         "nginx": r"nginx/?([\\d\\.]+)?",
@@ -78,37 +77,29 @@ class ServiceFingerprinter:
         """
         logger.debug(f"Fingerprinting {host}:{port}")
         
-        # HTTP/HTTPS services
         if port in (80, 8080, 8000, 8008, 8888):
             return self._fingerprint_http(host, port, False)
         if port in (443, 8443):
             return self._fingerprint_http(host, port, True)
         
-        # SSH
         if port == 22:
             return self._fingerprint_ssh(host, port)
-        
-        # FTP
+
         if port in (21, 2121):
             return self._fingerprint_ftp(host, port)
-        
-        # SMTP
+
         if port in (25, 587):
             return self._fingerprint_smtp(host, port)
-        
-        # MySQL/MariaDB
+
         if port == 3306:
             return self._fingerprint_mysql(host, port)
-        
-        # PostgreSQL
+
         if port == 5432:
             return self._fingerprint_postgresql(host, port)
-        
-        # Redis
+
         if port == 6379:
             return self._fingerprint_redis(host, port)
-        
-        # Generic TCP banner grab
+  
         return self._fingerprint_generic(host, port)
     
     def _fingerprint_http(self, host: str, port: int, is_ssl: bool = False) -> Dict[str, Any]:
@@ -276,7 +267,6 @@ class ServiceFingerprinter:
         Fingerprint PostgreSQL service.
         """
         try:
-            # PostgreSQL doesn't send banner without proper handshake, just check if connection is possible
             s = self._grab_banner(host, port) # Just try to connect and close
             
             return {"service": "postgresql", "product": "postgresql", "version": "unknown"}
@@ -295,7 +285,6 @@ class ServiceFingerprinter:
             response = s.recv(4096).decode('utf-8', errors='ignore')
             s.close()
             
-            # Parse Redis version from INFO response
             version_match = re.search(r'redis_version:([\\d\\.]+)', response)
             if version_match:
                 version = version_match.group(1)

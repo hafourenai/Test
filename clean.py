@@ -8,7 +8,6 @@ def clean_project():
     
     deleted_count = 0
     
-    # 1. Remove __pycache__ folders
     for pycache in project_root.rglob("__pycache__"):
         if pycache.is_dir():
             try:
@@ -18,7 +17,6 @@ def clean_project():
             except Exception as e:
                 print(f"  [!] Error removing {pycache}: {e}")
 
-    # 2. Remove .pyc files
     for pyc in project_root.rglob("*.pyc"):
         try:
             pyc.unlink()

@@ -41,6 +41,9 @@ python python/unified_scanner.py target.com --ports 80 --proxies
 > Fitur `--tor` memerlukan layanan **Tor** berjalan di port 9050.  
 > Fitur `--proxies` akan otomatis membaca list di file `proxies.txt` (satu proxy per baris).
 
+**Lihat Catatan**
+[disini](https://www.canva.com/design/DAHB1-FEC84/zcfgeCmjRATznBlUlfsOLg/edit?utm_content=DAHB1-FEC84&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
+
 ### Alur Kerja Scanner (4-Step Process)
 1. **[Step 1/4] Service Fingerprinting**: Identifikasi software & versi aktif.
 2. **[Step 2/4] Web Discovery**: Mencari path sensitif & parameter serangan secara otomatis.
@@ -73,5 +76,5 @@ Anda dapat menambah atau memperbarui payload dengan sangat mudah:
 
 ---
 
-## ⚖️ DISCLAIMER
-Alat ini dibuat untuk tujuan edukasi dan pengujian keamanan yang sah. Penggunaan tanpa izin pada infrastruktur pihak ketiga dapat berakibat hukum.
+## DISCLAIMER
+Alat ini dibuat hanya sebagai media pembelajaran untuk memahami logika bagaimana membuat sebuah vulnerability scanner

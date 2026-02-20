@@ -1,4 +1,3 @@
-# python/proxy_manager.py
 """
 Proxy & Tor Integration Manager
 Implements proxy rotation and Tor integration to avoid blocking
@@ -38,23 +37,18 @@ class ProxyManager:
         self.tor_control_port = int(os.getenv('TOR_CONTROL_PORT', 9051))
         self.rotation_strategy = strategy
         
-        # Proxy performance tracking
-        self.proxy_stats = {}  # {proxy_id: {total, successful, latencies, last_used}}
+        self.proxy_stats = {}  
         self.request_count = 0
         
-        # Initialize Tor session for verification
         self.tor_session = TorSession() if TorSession else None
         
-        # Cache real IP for fail-safe checks
         self.real_ip = self.get_public_ip(use_proxy=False)
         
-        # Load proxies from file
         if self.proxies_file.exists():
             self._load_proxies()
         else:
             logger.warning(f"Proxies file not found: {proxies_file}")
         
-        # Initialize Tor if enabled
         if self.use_tor:
             self._initialize_tor()
         
@@ -71,13 +65,12 @@ class ProxyManager:
                 if not line or line.startswith('#'):
                     continue
                 
-                # Parse proxy format: protocol://ip:port or ip:port
                 proxy = self._parse_proxy(line)
                 if proxy:
                     proxy_id = self._get_proxy_id(proxy)
                     proxy['id'] = proxy_id
                     self.proxies.append(proxy)
-                    # Initialize stats
+                    
                     self.proxy_stats[proxy_id] = {
                         'total_requests': 0,
                         'successful_requests': 0,
@@ -90,7 +83,6 @@ class ProxyManager:
             
             logger.info(f"  Loaded {len(self.proxies)} proxies from {self.proxies_file}")
             
-            # Shuffle proxies for randomization
             random.shuffle(self.proxies)
             
         except Exception as e:
@@ -108,14 +100,12 @@ class ProxyManager:
         try:
             proxy_str = proxy_str.strip()
             
-            # Check if protocol is specified
             if '://' in proxy_str:
                 protocol, rest = proxy_str.split('://', 1)
             else:
                 protocol = 'http'
                 rest = proxy_str
             
-            # Check for authentication
             if '@' in rest:
                 auth, address = rest.split('@', 1)
                 username, password = auth.split(':', 1)
@@ -135,15 +125,12 @@ class ProxyManager:
     def _initialize_tor(self):
         """Initialize Tor service"""
         try:
-            # Check if Tor is already running
             if self._check_tor_running():
                 logger.info("  Tor is already running")
                 return
             
-            # Try to start Tor
             logger.info("Starting Tor service...")
             
-            # Try systemctl first (Linux)
             try:
                 subprocess.run(['sudo', 'systemctl', 'start', 'tor'], 
                              check=False, capture_output=True)
@@ -151,7 +138,6 @@ class ProxyManager:
             except:
                 pass
             
-            # Check if Tor is now running
             if self._check_tor_running():
                 logger.info("  Tor service started successfully")
             else:
@@ -268,12 +254,9 @@ class ProxyManager:
             success_rate = stats.get('success_rate', 1.0)
             avg_latency = stats.get('avg_latency', 5.0)
             
-            # Calculate weight: higher success rate and lower latency = higher weight
-            # Avoid division by zero
             weight = success_rate / (avg_latency + 0.1)
-            weights.append(max(0.01, weight))  # Minimum weight to give all proxies a chance
+            weights.append(max(0.01, weight))  
         
-        # Weighted random selection
         selected = random.choices(self.proxies, weights=weights, k=1)[0]
         return selected
     

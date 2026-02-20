@@ -13,7 +13,6 @@ import json
 import requests
 from pathlib import Path
 
-# Add python directory to path
 try:
     from tor_session import TorSession
     from config import NVD_API_KEY, TOR_SOCKS_PROXY
@@ -47,7 +46,6 @@ class NVDClient:
         self.api_key = api_key or os.getenv('NVD_API_KEY')
         self.use_tor = use_tor
         
-        # Initialize session (Tor or regular)
         if use_tor and TOR_AVAILABLE:
             self.session = TorSession()
             logger.info("[Tor] NVD Client using Tor network")
@@ -59,17 +57,15 @@ class NVDClient:
             import requests
             self.session = requests.Session()
         
-        # Rate limiting
         if api_key:
-            self.requests_per_30_seconds = 50  # With API key
-            self.sleep_time = 0.6  # 30s / 50 requests
+            self.requests_per_30_seconds = 50  
+            self.sleep_time = 0.6  
         else:
-            self.requests_per_30_seconds = 5   # Without API key
-            self.sleep_time = 6.0  # 30s / 5 requests
+            self.requests_per_30_seconds = 5   
+            self.sleep_time = 6.0  
         
         self.last_request_time = 0
         
-        # Setup headers
         self.headers = {
             'User-Agent': 'VulnerabilityScanner/2.0 (Educational Purpose)',
             'Accept': 'application/json'
@@ -107,28 +103,20 @@ class NVDClient:
         """
         self._rate_limit()
         
-        # Remove wildcards from CPE for better matching
-        # NVD API 2.0 uses cpeName parameter for exact matching
-        # or virtualMatchString for partial matching
-        
         params = {
-            'resultsPerPage': min(max_results, 2000),  # API max is 2000
+            'resultsPerPage': min(max_results, 2000),  
         }
         
-        # Determine if we should use cpeName (exact) or virtualMatchString (partial)
         if '*' in cpe_name or cpe_name.count(':') < 12:
-            # Use virtual match for wildcards or incomplete CPEs
             params['virtualMatchString'] = cpe_name
             logger.debug(f"Using virtualMatchString: {cpe_name}")
         else:
-            # Use exact match for complete CPEs
             params['cpeName'] = cpe_name
             logger.debug(f"Using cpeName: {cpe_name}")
         
         try:
             logger.info(f"[Query] Querying NVD API for: {cpe_name}")
             
-            # Use TorSession.get() or requests.Session.get() depending on session type
             if isinstance(self.session, TorSession):
                 response = self.session.get(
                     self.base_url,
@@ -144,7 +132,6 @@ class NVDClient:
                     timeout=30
                 )
             
-            # Log the actual URL for debugging
             logger.debug(f"Request URL: {response.url}")
             
             if response.status_code == 403:
@@ -165,7 +152,6 @@ class NVDClient:
             
             logger.info(f"[Success] Found {total_results} CVEs for {cpe_name}")
             
-            # Use same extraction logic as search_by_cpe
             return self._extract_cves(data)
             
         except requests.exceptions.RequestException as e:
@@ -235,20 +221,17 @@ class NVDClient:
         """
         cves = []
         
-        # Strategy 1: Try keyword search first (broader)
         keyword = f"{service_name} {version}" if version else service_name
         cves.extend(self.search_by_keyword(keyword, max_results=50))
         
-        # Strategy 2: Try common CPE patterns
         if not cves:
             cpe_patterns = self._generate_cpe_patterns(service_name, version)
             for cpe in cpe_patterns:
                 results = self.search_by_cpe(cpe, max_results=50)
                 cves.extend(results)
                 if results:
-                    break  # Stop if we found results
+                    break  
         
-        # Remove duplicates and sort by severity
         seen = set()
         unique_cves = []
         for cve in cves:
@@ -256,7 +239,6 @@ class NVDClient:
                 seen.add(cve['id'])
                 unique_cves.append(cve)
         
-        # Sort by CVSS score (highest first)
         unique_cves.sort(key=lambda x: (x.get('cvss_v3') or x.get('cvss_v2') or 0), reverse=True)
         
         return unique_cves
@@ -265,7 +247,6 @@ class NVDClient:
         """Generate possible CPE patterns for a service"""
         patterns = []
         
-        # Common vendor mappings
         vendor_map = {
             'nginx': ['nginx', 'f5'],
             'openssh': ['openbsd', 'openssh'],
@@ -281,9 +262,7 @@ class NVDClient:
         
         for vendor in vendors:
             if version:
-                # Exact version
-                patterns.append(f"cpe:2.3:a:{vendor}:{service_lower}:{version}:*:*:*:*:*:*:*")
-            # Wildcard version for broader search
+                    patterns.append(f"cpe:2.3:a:{vendor}:{service_lower}:{version}:*:*:*:*:*:*:*")
             patterns.append(f"cpe:2.3:a:{vendor}:{service_lower}:*:*:*:*:*:*:*:*")
         
         return patterns
@@ -409,10 +388,8 @@ if __name__ == "__main__":
         format='%(levelname)s:%(name)s:%(message)s'
     )
     
-    # Initialize client (add your API key if you have one)
-    client = NVDClient(api_key=None)  # or api_key="your-key-here"
+    client = NVDClient(api_key=None)  
     
-    # Test 1: Search for nginx vulnerabilities
     print("\n" + "="*60)
     print("Test 1: Searching for nginx vulnerabilities")
     print("="*60)
@@ -429,7 +406,6 @@ if __name__ == "__main__":
     else:
         print("  No CVEs found")
     
-    # Test 2: Search for OpenSSH vulnerabilities
     print("\n" + "="*60)
     print("Test 2: Searching for OpenSSH vulnerabilities")
     print("="*60)

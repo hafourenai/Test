@@ -27,8 +27,8 @@ def print_banner():
     banner = """
 +===============================================+
 |                  LOVE U N                     |
-|   High-Speed Vulnerability Scanner            |
-|   Custom Payloads • High-Accuracy             |
+|   Amateurs Vulnerability Scanner              |
+|   Just For Education                          |
 +===============================================+
     """
     print(banner)
@@ -41,7 +41,7 @@ def print_disclaimer():
    • Unauthorized scanning may be illegal in your jurisdiction
    • User assumes all responsibility for scanner usage
    
-🔒 PRIVACY NOTICE:
+ PRIVACY NOTICE:
    • Results are for authorized security testing only
    • Vulnerability presence does not imply exploitability
     """
@@ -51,7 +51,7 @@ def main():
     print_banner()
     
     parser = argparse.ArgumentParser(
-        description='High-Speed Vulnerability Scanner with Custom Payloads',
+        description='Amateurs Vulnerability Scanner',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
@@ -100,7 +100,7 @@ def main():
     print(f"[+] Workers: {args.workers} | Timeout: {args.timeout}s")
     print(f"[+] Stealth: {args.stealth}")
     
-    # Initialize UnifiedScanner
+    
     scanner = UnifiedScanner(
         stealth_level=args.stealth,
         use_tor=args.tor,
@@ -109,7 +109,7 @@ def main():
         enable_cve_matching=True
     )
     
-    # Load custom payloads if provided
+    
     if args.xss_file and Path(args.xss_file).exists():
         scanner.payload_manager.load_payloads('xss', args.xss_file)
     
@@ -119,11 +119,11 @@ def main():
     if args.lfi_file and Path(args.lfi_file).exists():
         scanner.payload_manager.load_payloads('lfi', args.lfi_file)
     
-    # Execute scan
+    
     results = asyncio.run(scanner.scan_target(target=args.target))
     
     if results:
-        # Display summary
+        
         stats = results.get('statistics', {})
         total_vulns = stats.get('vulnerabilities_found', 0)
         
@@ -131,7 +131,7 @@ def main():
         print(f"[+] Duration: {stats.get('duration', 0):.2f}s")
         print(f"[+] Vulnerabilities Found: {total_vulns}")
         
-        # Determine exit code based on severity
+        
         cve_findings = results.get('cve_findings', [])
         dast_findings = results.get('dast_findings', [])
         

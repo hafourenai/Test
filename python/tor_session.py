@@ -61,12 +61,12 @@ class TorSession:
         self.verify_ssl = verify_ssl
         self.circuit_rotation_interval = circuit_rotation_interval
         
-        # Request tracking
+        
         self.request_count = 0
         self.last_ip = None
         self.is_tor_verified = False
         
-        # Create session with Tor proxy
+        
         self.session = requests.Session()
         
 
@@ -75,7 +75,7 @@ class TorSession:
             'https': tor_proxy
         }
         
-        # Configure retry strategy
+        
         retry_strategy = Retry(
             total=max_retries,
             backoff_factor=1,
@@ -87,7 +87,7 @@ class TorSession:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
         
-        # Set default headers with randomized User-Agent
+        
         self.session.headers.update({
             'User-Agent': self._get_random_user_agent(),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -142,21 +142,21 @@ class TorSession:
         Returns:
             Response object or None on failure
         """
-        # Set default timeout if not provided
+        
         if 'timeout' not in kwargs:
             kwargs['timeout'] = self.timeout
         
-        # Set SSL verification
+        
         if 'verify' not in kwargs:
             kwargs['verify'] = self.verify_ssl
         
-        # Randomize User-Agent per request for better anonymity
+        
         if 'headers' not in kwargs:
             kwargs['headers'] = {}
         if 'User-Agent' not in kwargs['headers']:
             kwargs['headers']['User-Agent'] = self._get_random_user_agent()
         
-        # Auto-rotate circuit based on request count
+        
         if self.request_count > 0 and self.request_count % self.circuit_rotation_interval == 0:
             logger.info(f"[Tor] Auto-rotating circuit after {self.request_count} requests")
             self.renew_identity()
@@ -167,15 +167,15 @@ class TorSession:
                 
                 response = self.session.request(method, url, **kwargs)
                 
-                # Increment request counter
+                
                 self.request_count += 1
                 
-                # Periodic Tor verification (every 50 requests)
+                
                 if self.request_count % 50 == 0:
                     logger.info(f"[Tor] Periodic verification at {self.request_count} requests")
                     self._verify_tor_connection_silent()
                 
-                # Log successful request
+                
                 logger.debug(f"[Success] {method} {url} - Status: {response.status_code}")
                 
                 return response
@@ -226,7 +226,7 @@ class TorSession:
         try:
             logger.info("[Search] Verifying Tor connection...")
             
-            # Check Tor Project API
+        
             response = self.get('https://check.torproject.org/api/ip', timeout=10)
             
             if response and response.status_code == 200:

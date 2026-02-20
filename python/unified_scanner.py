@@ -700,7 +700,6 @@ class UnifiedScanner:
         logger.info("[Cleanup] Complete")
 
 
-# Example usage
 if __name__ == "__main__":
     import argparse
     
@@ -729,31 +728,31 @@ if __name__ == "__main__":
                 print("[!] Target tidak boleh kosong.")
                 return
 
-        # Parse ports
+    
         try:
             port_list = [int(p.strip()) for p in args.ports.split(',')]
         except ValueError:
             print("[!] Format port salah. Gunakan contoh: 80,443,8080")
             return
 
-        # Initialize scanner
+    
         print(f"[*] Menyiapkan Unified Scanner... (API Key: {'Set [OK]' if NVD_API_KEY else 'Not Set [Slow Mode]'})")
         scanner = UnifiedScanner(
             stealth_level=args.stealth,
             use_tor=args.tor,
             use_proxies=args.proxies,
             proxies_file=args.proxies_file,
-            nvd_api_key=NVD_API_KEY, # Otomatis ambil dari .env via config.py
+            nvd_api_key=NVD_API_KEY, 
             enable_cve_matching=True,
             max_depth=args.depth,
             max_pages=args.pages
         )
         
-        # Scan target
+        
         print(f"[*] Memulai scan pada {target} (Port: {args.ports})...")
         results = await scanner.scan_target(target, ports=port_list)
         
-        # Display results summary
+        
         print("\n" + "="*60)
         print("RINGKASAN SCAN")
         print("="*60)
@@ -768,7 +767,7 @@ if __name__ == "__main__":
         print(f"Scan Duration: {results['statistics']['duration']:.2f}s")
         print("="*60)
         
-        # Display DAST Findings (Critical/Active)
+        
         if results['dast_findings']:
             print("\n" + "!"*60)
             print("  ACTIVE EXPLOITATION FINDINGS (CONFIRMED")
@@ -780,7 +779,7 @@ if __name__ == "__main__":
                 print(f"      Confidence: {f['confidence']}")
                 print("-" * 40)
         
-        # Display Misconfigurations
+        
         if results['misconfigurations']:
             print("\n" + "?"*60)
             print("  SECURITY MISCONFIGURATIONS & HEADERS")
@@ -791,14 +790,14 @@ if __name__ == "__main__":
                     print(f"      - {detail}")
                 print("-" * 20)
 
-        # Display CVE report
+        
         if results['cve_findings'] and scanner.cve_matcher:
             print(scanner.cve_matcher.format_findings(results['cve_findings']))
         
-        # Cleanup
+        
         scanner.cleanup()
     
-    # Run
+    
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

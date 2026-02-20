@@ -90,15 +90,15 @@ class StealthEngine:
             'Cache-Control': random.choice(['no-cache', 'max-age=0', 'no-store']),
         }
         
-        # Add referrer spoofing (70% chance)
+        
         if random.random() > 0.3:
             headers['Referer'] = self._generate_referrer(parsed.netloc)
         
-        # Add origin header for POST requests
+        
         if random.random() > 0.5:
             headers['Origin'] = f"{parsed.scheme}://{parsed.netloc}"
         
-        # Randomly add some optional headers
+        
         if random.random() > 0.5:
             headers['Sec-CH-UA'] = self._generate_sec_ch_ua()
         
@@ -124,11 +124,11 @@ class StealthEngine:
     def _generate_referrer(self, target_domain: str) -> str:
         """Generate realistic referrer"""
         strategies = [
-            # Search engine referrer
+            
             lambda: f"{random.choice(REFERRER_DOMAINS)}/search?q={target_domain}",
-            # Direct domain referrer
+            
             lambda: f"https://{target_domain}",
-            # Random popular site
+            
             lambda: random.choice(REFERRER_DOMAINS),
         ]
         
@@ -147,11 +147,11 @@ class StealthEngine:
         """Generate realistic cookies"""
         cookies = {}
         
-        # Add some random session-like cookies (30% chance)
+        
         if random.random() > 0.7:
             cookies['session_id'] = self._random_string(32)
         
-        # Add tracking cookies (20% chance)
+        
         if random.random() > 0.8:
             cookies['_ga'] = f"GA1.2.{random.randint(100000000, 999999999)}.{int(time.time())}"
         
@@ -169,10 +169,10 @@ class StealthEngine:
             self.config['delay_max']
         )
         
-        # Add jitter (±20%)
+        
         jitter = random.uniform(-0.2, 0.2) * base_delay
         
-        # Increase delay if WAF detected
+        
         if self.waf_detected:
             base_delay *= 2
             logger.debug(f"[Stealth] WAF detected, doubling delay to {base_delay:.2f}s")
@@ -183,7 +183,7 @@ class StealthEngine:
         """Apply rate limiting delay"""
         delay = self._calculate_delay()
         
-        # Ensure minimum time between requests
+        
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
         
@@ -251,11 +251,11 @@ class StealthEngine:
         
         logger.info("[Stealth] Adjusting settings for WAF detection...")
         
-        # Increase delays
+        
         self.config['delay_min'] *= 1.5
         self.config['delay_max'] *= 1.5
         
-        # Reduce workers
+        
         self.config['workers'] = max(5, self.config['workers'] // 2)
         
         # Increase proxy rotation
@@ -275,7 +275,7 @@ class StealthEngine:
         logger.info("[Stealth] WAF detection state reset")
 
 
-# Example usage
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
